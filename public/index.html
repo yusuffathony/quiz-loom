@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QuizLoom - Live Quiz</title>
+<style>
+:root{
+  --primary:#1a1a2e; --accent:#e94560; --gold:#ffd700;
+  --bg:#0f0f1a; --card:#1a1a2e; --text:#e0e0e0; --muted:#888;
+  --green:#00ff88; --red:#ff4444; --radius:12px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+#screen-home,#screen-join,#screen-host,#screen-participant{display:none;min-height:100vh;padding:20px}
+#screen-home.active,#screen-join.active{display:flex;flex-direction:column;justify-content:center;align-items:center;padding:16px}
+#screen-host.active{display:flex;flex-direction:column;align-items:center}
+#screen-participant.active{display:flex;flex-direction:column;align-items:center}
+.home-logo{font-size:3rem;margin-bottom:8px}
+.home-logo span{color:var(--accent)}
+.home-title{font-size:1.5rem;margin-bottom:4px}
+.home-sub{color:var(--muted);font-size:.9rem;margin-bottom:24px}
+.home-btns{display:flex;gap:16px;flex-wrap:wrap;justify-content:center}
+.btn{padding:16px 28px;border:none;border-radius:var(--radius);font-size:1.1rem;font-weight:600;cursor:pointer;transition:transform .15s}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--accent);color:#fff;box-shadow:0 4px 15px rgba(233,69,96,.4)}
+.btn-primary:hover{transform:translateY(-2px)}
+.btn-secondary{background:var(--card);color:var(--text);border:1px solid var(--muted);padding:14px 24px}
+.btn-secondary:hover{border-color:var(--text)}
+.btn-green{background:var(--green);color:#000}
+.btn-gold{background:var(--gold);color:#000}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.join-code{max-width:400px}
+.join-code input{font-size:1.6rem;text-align:center;padding:12px;width:100%;border:none;border-bottom:3px solid var(--accent);background:transparent;color:var(--text)}
+.join-code input:focus{outline:none}
+.join-actions{display:flex;gap:16px;margin-top:20px;flex-wrap:wrap;justify-content:center}
+.participant-list{max-height:200px;overflow-y:auto;border:1px solid var(--muted);border-radius:var(--radius);padding:8px}
+.participant-item{background:var(--card);padding:10px 12px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between}
+.participant-name{color:var(--text);font-weight:500}
+.participant-score{color:var(--green);font-weight:700}
+.host-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.host-header h1{font-size:1.4rem}
+.code-badge{background:var(--accent);color:#fff;padding:8px 16px;border-radius:var(--radius);font-size:.9rem;font-weight:700;letter-spacing:2px;text-transform:uppercase}
+.host-meta{color:var(--muted);font-size:.85rem;margin-bottom:20px}
+.host-controls{display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap;justify-content:center}
+.host-controls .btn{width:100%}
+.quiz-area{flex:1;display:none;flex-direction:column;justify-content:center;align-items:center;gap:20px;overflow-y:auto;padding:20px}
+.quiz-area.active{display:flex}
+.question-card{background:var(--card);border:2px solid var(--accent);border-radius:var(--radius);padding:24px;text-align:center}
+.question-card .q-number{font-size:1.2rem;color:var(--accent);font-weight:700;margin-bottom:8px}
+.question-card .q-text{font-size:1.4rem;font-weight:700;line-height:1.4}
+.question-card .q-type{font-size:.9rem;color:var(--muted)}
+.timer{font-size:3rem;font-weight:800;transition:color .2s}
+.timer.over{color:var(--red);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.5}}
+.answers{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;padding:16px 0}
+.answer-btn{padding:20px 16px;border:none;border-radius:var(--radius);font-size:1.1rem;font-weight:700;cursor:pointer;transition:background .2s,color .2s}
+.answer-btn:hover{transform:translateY(-2px)}
+.answer-btn.correct{background:var(--green);color:#000}
+.answer-btn.wrong{background:var(--red);color:#fff}
+.answer-btn.disabled{opacity:.5;cursor:not-allowed}
+.scoreboard{width:100%;max-width:600px}
+.scoreboard .header{background:var(--card);padding:12px;border-radius:var(--radius);margin-bottom:12px}
+.scoreboard ul{list-style:none}
+.scoreboard li{display:flex;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);font-size:.95rem}
+.scoreboard li:last-child{border-bottom:none}
+.scoreboard .rank{flex:0 0 40px}
+.scoreboard .rank.top1{background:var(--gold);color:#000;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-size:1.2rem;font-weight:800}
+.scoreboard .rank.top2{background:var(--muted);color:#000;width:40px;height:40px;border-radius:50%}
+.scoreboard .name{color:var(--muted);font-size:.85rem}
+.scoreboard .score{font-weight:700;color:var(--green)}
+.wait-card{text-align:center;padding:40px}
+.wait-card h2{font-size:1.8rem;margin-bottom:12px}
+.wait-card .code-lg{font-size:4rem;font-weight:800;color:var(--accent);margin-bottom:16px}
+.wait-card .instructions{color:var(--muted);font-size:.95rem;line-height:1.8}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--card);border:1px solid var(--accent);color:var(--text);padding:14px 24px;border-radius:var(--radius);font-size:1rem;z-index:9999;opacity:0;transition:all .4s}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media (max-width:600px){.question-card .q-text{font-size:1.2rem}.timer{font-size:2.4rem}}
+</style>
+</head>
+<body>
+<div id="toast"></div>
+<div id="screen-home" class="active">
+  <div class="home-logo">🎯 <span>QuizLoom</span></div>
+  <h1 class="home-title">Buat & Ikuti Quiz Online</h1>
+  <p class="home-sub">Platform untuk semua &mdash; 250+ peserta, real-time</p>
+  <div class="home-btns">
+    <button class="btn btn-primary" onclick="goHost()">🌟 Host Quiz</button>
+    <button class="btn btn-secondary" onclick="goJoin()">👥 Ikut Quiz</button>
+  </div>
+</div>
+<div id="screen-join">
+  <div class="join-code">
+    <h2>Masuk ke Quiz</h2>
+    <input id="codeInput" type="text" maxlength="6" placeholder="KODE QUIZ (6 huruf)" autofocus>
+    <div id="codeError" class="error" style="display:none;margin-top:8px;color:red;font-size:.9rem">Kode salah atau room sudah selesai</div>
+    <div class="join-actions">
+      <button class="btn btn-primary" onclick="joinRoom()">Masuk</button>
+      <button class="btn btn-secondary" onclick="goHome()">Batal</button>
+    </div>
+  </div>
+  <div class="join-participants" id="participantSection" style="display:none;margin-top:20px">
+    <h3>💻 Peserta</h3>
+    <div class="participant-list" id="participantList"></div>
+  </div>
+</div>
+<div id="screen-host">
+  <div class="host-header">
+    <div><h2 style="font-size:1.4rem">🏁 Hosting</h2><div class="code-badge" id="hostCode">---</div></div>
+    <div class="host-meta" id="hostMeta"></div>
+  </div>
+  <div class="host-controls">
+    <button class="btn btn-gold" id="btnStart" onclick="startGame()" disabled>▶️ Mulai Quiz</button>
+    <button class="btn btn-secondary" onclick="resetHost()">🔁 Reset</button>
+  </div>
+  <div class="quiz-area" id="quizArea"></div>
+</div>
+<div id="screen-participant">
+  <div class="wait-card" id="waitCard">
+    <h2>⏳ Menunggu</h2>
+    <div class="code-lg" id="waitCode">---</div>
+    <p class="instructions">Kamu masuk sebagai <b id="waitName"></b>. Tunggu host mulai.</p>
+  </div>
+  <div class="quiz-area" id="quizArea" style="display:none">
+    <div class="question-card" id="qCard" style="display:none">
+      <div class="q-number" id="qNumber"></div>
+      <div class="q-text" id="qText"></div>
+      <div class="q-type" id="qType"></div>
+      <div id="qContent"></div>
+    </div>
+    <div class="scoreboard" id="scoreboard" style="display:none">
+      <div class="header"><span>🏆 Peringkat</span></div>
+      <ul></ul>
+    </div>
+  </div>
+</div>
+<script>
+// ===== CONFIG =====
+let socket = null, myRoom = null, myPid = null, myName = null;
+let currentQ = 0, isHost = false, gameStarted = false;
+const $ = id => document.getElementById(id);
+
+// ===== REFRESH SOCKET =====
+function connect(){ socket = io(); socket.on('disconnect', () => toast('Connection lost')); }
+
+// ===== TOAST =====
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.className = 'show'; clearTimeout(t._t); t._t = setTimeout(() => t.className='', 2500); }
+
+// ===== ROUTING =====
+function goHome(){ [screenHome,screenJoin,screenHost,screenPart].forEach(s=>s.className=''); }
+function goJoin(){ [screenHome,screenHost,screenPart].forEach(s=>s.className=''); screenJoin.className='active'; }
+function goHost(){ [screenHome,screenJoin,screenPart].forEach(s=>s.className=''); screenHost.className='active'; }
+function goPart(){ [screenHome,screenJoin,screenHost,screenPart].forEach(s=>s.className=''); screenPart.className='active'; }
+
+// ===== SCREEN REFERENCES =====
+const screenHome=$('screen-home'), screenJoin=$('screen-join'), screenHost=$('screen-host'), screenPart=$('screen-part');
+
+// ===== HOST: CREATE ROOM =====
+function createRoom(){ goHost(); socket.emit('createRoom', prompt('Nama host (opsional):','Host'), (resp) => {
+  if(!resp){ toast('Gagal'); return; }
+  myRoom = resp;
+  $('#hostCode').textContent = resp.code;
+  toast('Room dibuat! Bagikan kode ini ke peserta.');
+}});
+}
+
+// ===== HOST: SET QUESTIONS =====
+function setQuestionsUI(){
+  const names = ['Quiz', 'Pilihan Ganda', 'Benar/Salah', 'Isian'];
+  const types = ['quiz','multi','truefalse','open'];
+  const ctx = this;
+  const qCount = prompt('Jumlah soal:', '5');
+  if(!qCount) return;
+  const count = parseInt(qCount);
+  if(isNaN(count) || count < 1) return;
+  const questions = [];
+  for(let i=0;i<count;i++){
+    const text = prompt(`Soal ${i+1} dari ${count}:`, 'Masukkan teks soal');
+    if(text === null) return;
+    const type = names[Math.floor(Math.random()*names.length)];
+    const q = { id:i, text, type, time: 30, desc: '' };
+    if(type === 'quiz'){
+      q.correctAnswer = 'A';
+      q.options = ['Option A','Option B','Option C','Option D'];
+    } else if(type === 'multi'){
+      q.correctAnswer = ['A','C'];
+      q.options = ['Option A','Option B','Option C','Option D'];
+    } else if(type === 'truefalse'){
+      q.correctAnswer = 'A';
+      q.options = ['True','False'];
+    } else {
+      q.correctAnswer = 'A';
+      q.options = ['Option A','Option B','Option C'];
+    }
+    questions.push(q);
+  }
+  ctx.saveQuestions = questions;
+  socket.emit('setQuestions', myRoom.code, questions, (resp) => {
+    if(resp.error){ toast(resp.error); return; }
+    toast(`${questions.length} soal tersimpan`);
+  });
+}
+
+// ===== START GAME =====
+function startGame(){
+  if(!myRoom) return;
+  socket.emit('startGame', myRoom.code, (resp) => {
+    if(resp.error){ toast(resp.error); return; }
+    gameStarted = true;
+    currentQ = 0;
+    renderQ(currentQ);
+    toast('Mulai! Peserta bisa jawab.');
+  });
+}
+
+// ===== RENDER QUESTION =====
+function renderQ(idx, fromHost){
+  const q = myRoom.questions[idx];
+  if(!q) return;
+  const isPlay = gameStarted;
+  $('#qCard').style.display = 'block';
+  const qNum = document.createElement('div');
+  qNum.className = 'q-number';
+  qNum.textContent = `Soal ${idx+1} dari ${myRoom.questions.length}`;
+  const qText = document.createElement('div');
+  qText.className = 'q-text';
+  qText.textContent = q.text;
+  const qType = document.createElement('div');
+  qType.className = 'q-type';
+  qType.textContent = q.type;
+  const qContent = document.getElementById('qContent');
+  qContent.innerHTML = '';
+  qContent.appendChild(qNum);
+  qContent.appendChild(qText);
+  qContent.appendChild(qType);
+  if(q.desc) {
+    const d = document.createElement('div');
+    d.style.color = '#8A97AD'; d.style.fontSize = '12px';
+    d.textContent = q.desc;
+    qContent.appendChild(d);
+  }
+  if(isHost && q.type !== 'open'){
+    const time = q.time || 20;
+    const timerWrap = document.createElement('div');
+    timerWrap.id = 'qTimer';
+    timerWrap.className = 'timer';
+    timerWrap.textContent = `⏱️ ${time}s`;
+    qContent.appendChild(timerWrap);
+  } else if(!isHost){
+    const timerWrap = document.createElement('div');
+    timerWrap.id = 'qTimer';
+    timerWrap.className = 'timer';
+    qContent.appendChild(timerWrap);
+  }
+  if(isHost && q.type !== 'open'){
+    const btns = q.options.map((opt, oi) => {
+      const div = document.createElement('button');
+      div.className = 'answer-btn';
+      div.dataset.answer = opt;
+      div.textContent = String.fromCharCode(65+oi) + ' ' + opt;
+      div.addEventListener('click', () => selectAnswer(opt));
+      return div;
+    });
+    qContent.appendChild(document.createElement('div')).appendChild(
+      document.createElement('div')
+    );
+    // Rebuild
+    qContent.innerHTML = '';
+    const qNum2 = document.createElement('div');
+    qNum2.className = 'q-number';
+    qNum2.textContent = `Soal ${idx+1} dari ${myRoom.questions.length}`;
+    const qText2 = document.createElement('div');
+    qText2.className = 'q-text';
+    qText2.textContent = q.text;
+    const qType2 = document.createElement('div');
+    qType2.className = 'q-type';
+    qType2.textContent = q.type;
+    qContent.appendChild(qNum2);
+    qContent.appendChild(qText2);
+    qContent.appendChild(qType2);
+    if(q.desc) {
+      const d = document.createElement('div');
+      d.style.color = '#8A97AD'; d.style.fontSize = '12px';
+      d.textContent = q.desc;
+      qContent.appendChild(d);
+    }
+    const timerWrap2 = document.createElement('div');
+    timerWrap2.id = 'qTimer';
+    timerWrap2.className = 'timer';
+    timerWrap2.textContent = `⏱️ ${q.time || 20}s`;
+    qContent.appendChild(timerWrap2);
+    const answers = q.options.map((opt, oi) => {
+      const div = document.createElement('button');
+      div.className = 'answer-btn';
+      div.dataset.answer = opt;
+      div.textContent = String.fromCharCode(65+oi) + ' ' + opt;
+      div.addEventListener('click', () => selectAnswer(opt));
+      return div;
+    }).join('');
+    qContent.appendChild(document.createElement('div')).innerHTML = answers;
+  }
+  const quizArea = document.getElementById('quizArea');
+  quizArea.appendChild(qContent);
+}
+
+function selectAnswer(val){
+  if(gameStarted && myRoom) {
+    const q = myRoom.questions[currentQ];
+    const timeSpent = Math.floor((Date.now() - quizStart) / 1000);
+    socket.emit('answerQuestion', myRoom.code, { selected: val, timeSpent });
+  }
+}
+
+// ===== JOIN =====
+function joinRoom(){
+  const code = $('#codeInput').value.trim().toUpperCase();
+  if(!code || code.length < 4){ toast('Kode quiz tidak boleh kosong'); return; }
+  const name = prompt('Nama peserta:','Peserta'+Math.floor(Math.random()*1000));
+  if(name === null) return;
+  socket.emit('joinRoom', { code, name }, (resp) => {
+    if(resp.error){ toast(resp.error); return; }
+    myRoom = resp.room;
+    myPid = resp.pid;
+    myName = name;
+    goPart();
+    showWait();
+  });
+}
+
+function showWait(){
+  const wc = $('#waitCode');
+  wc.textContent = myRoom.code;
+  const wn = $('#waitName');
+  wn.textContent = myRoom.hostName;
+  const part = $('#screen-participant');
+  part.className = 'active';
+  setTimeout(()=>{
+    const qa = $('#quizArea');
+    qa.style.display = 'flex';
+    const q = myRoom.questions[0];
+    if(q){
+      currentQ = 0;
+      renderQ(0, false);
+    }
+  }, 800);
+}
+
+// ===== PART HOST CONTROLS =====
+function resetHost(){
+  if(!myRoom) return;
+  socket.emit('resetRoom', myRoom.code);
+  socket.disconnect();
+  connect();
+}
+
+// ===== SOCKET EVENTS =====
+socket.on('roomCreated', (data) => {
+  myRoom = data;
+  toast(`Room dibuat: ${data.code}`);
+  $('#hostCode').textContent = data.code;
+});
+
+socket.on('roomState', (room) => {
+  myRoom = room;
+  if(room.status === 'waiting' && room.participants.size > 0){
+    const list = $('#participantList');
+    list.innerHTML = '';
+    Array.from(room.participants.values()).forEach((p,i) => {
+      const div = document.createElement('div');
+      div.className = 'participant-item';
+      div.innerHTML = `<span class="participant-name">${i+1}. ${esc(p.name)}</span><span class="participant-score">${p.score} pts</span>`;
+      list.appendChild(div);
+    });
+  }
+});
+
+socket.on('userJoined', (data) => {
+  if(myRoom) updateParticipants();
+  toast(`+${data.name} bergabung`);
+});
+
+socket.on('startGame', (idx) => {
+  gameStarted = true;
+  currentQ = idx;
+  renderQ(idx, true);
+  // Start timer
+  const q = myRoom.questions[idx];
+  const time = q.time || 20;
+  const timer = $('#qTimer');
+  if(timer) timer.textContent = `⏱️ ${time}s`;
+  let sec = time;
+  const interval = setInterval(() => {
+    sec--;
+    if(timer) timer.textContent = `⏱️ ${sec}s`;
+    if(sec <= 0){
+      clearInterval(interval);
+      if(currentQ < myRoom.questions.length - 1){
+        socket.emit('nextQuestion', myRoom.code);
+      } else {
+        socket.emit('showResults', myRoom.code);
+      }
+    }
+  }, 1000);
+});
+
+socket.on('nextQuestion', (idx) => {
+  gameStarted = true;
+  currentQ = idx;
+  renderQ(idx, true);
+  // Reset timer
+  const q = myRoom.questions[idx];
+  const time = q.time || 20;
+  const timer = $('#qTimer');
+  if(timer) timer.textContent = `⏱️ ${time}s`;
+  let sec = time;
+  const interval = setInterval(() => {
+    sec--;
+    if(timer) timer.textContent = `⏱️ ${sec}s`;
+    if(sec <= 0){
+      clearInterval(interval);
+      if(currentQ < myRoom.questions.length - 1){
+        socket.emit('nextQuestion', myRoom.code);
+      } else {
+        socket.emit('showResults', myRoom.code);
+      }
+    }
+  }, 1000);
+});
+
+socket.on('results', (res) => {
+  const qa = $('#quizArea');
+  qa.innerHTML = '';
+  const sb = document.createElement('div');
+  sb.className = 'scoreboard';
+  sb.innerHTML = `<div class="header"><span>🏆 Peringkat Peserta</span></div><ul></ul>`;
+  const ul = sb.querySelector('ul');
+  res.scores.forEach((p,i) => {
+    const li = document.createElement('li');
+    const rank = i===0?'top1':(i===1?'top2':'');
+    li.innerHTML = `<span class="rank ${rank}"><i>#${i+1}</i></span><span class="name">${esc(p.name)}</span><span class="score">${p.score} pts</span>`;
+    ul.appendChild(li);
+  });
+  qa.appendChild(sb);
+  toast('Selesai!');
+});
+
+// ===== HELPERS =====
+function esc(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function updateParticipants(){
+  const list = $('#participantList');
+  list.innerHTML = '';
+  Array.from(myRoom.participants.values()).forEach((p,i) => {
+    const div = document.createElement('div');
+    div.className = 'participant-item';
+    div.innerHTML = `<span class="participant-name">${i+1}. ${esc(p.name)}</span><span class="participant-score">${p.score} pts</span>`;
+    list.appendChild(div);
+  });
+}
+
+// ===== INIT =====
+connect();
+</script>
+</body>
+</html>
