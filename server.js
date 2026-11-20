@@ -1,284 +1,358 @@
 const http = require('http');
-const { Server } = require('socket.io');
+const path = require('path');
 const express = require('express');
+const { Server } = require('socket.io');
+const { RoomManager } = require('./roomManager');
+const { PRESET_QUIZZES } = require('./presets');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: '*' },
-  maxHttpBufferSize: 1024 * 1024 * 50, // 50MB
+  maxHttpBufferSize: 1024 * 1024 * 10 // 10MB
 });
 
-app.use(express.static('public'));
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
-// In-memory rooms storage
-const rooms = new Map();
+const roomManager = new RoomManager();
 
-let roomIdCounter = 0;
+// API routes
+app.get('/api/presets', (req, res) => {
+  res.json({ ok: true, presets: PRESET_QUIZZES });
+});
 
-// Generate unique 6-char room code
-function generateCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: Math.floor(process.uptime()),
+    rooms: roomManager.rooms.size,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Broadcast question end & results
+function handleEndQuestion(room) {
+  if (!room || room.status !== 'question') return;
+
+  if (room.timerHandle) {
+    clearInterval(room.timerHandle);
+    room.timerHandle = null;
   }
-  return code;
+
+  const evalRes = roomManager.evaluateQuestion(room.code);
+  if (!evalRes) return;
+
+  // Send results to host
+  io.to(room.hostId).emit('questionEnded', {
+    correctAnswer: evalRes.question.correctAnswer,
+    explanation: evalRes.question.explanation,
+    distribution: evalRes.distribution,
+    leaderboard: evalRes.leaderboard,
+    isLastQuestion: evalRes.isLastQuestion,
+    questionIndex: room.currentQuestionIndex,
+    totalQuestions: room.questions.length
+  });
+
+  // Send personalized results to each participant
+  evalRes.participantResults.forEach((res, socketId) => {
+    io.to(socketId).emit('questionEnded', {
+      ...res,
+      distribution: evalRes.distribution,
+      leaderboard: evalRes.leaderboard,
+      questionIndex: room.currentQuestionIndex,
+      totalQuestions: room.questions.length
+    });
+  });
 }
 
-// Create room
-function createRoom(hostName) {
-  const code = generateCode();
-  const room = {
-    code: code,
-    hostId: null,
-    hostName: hostName,
-    participants: new Map(), // socket.id -> { name, score, answers }
-    questions: [],
-    currentQuestion: null,
-    status: 'waiting', // waiting, playing, ended
-    scores: [], // leaderboard
-    questionTimer: null,
-    socketIo: io,
-  };
-  rooms.set(room.code, room);
-  return room;
-}
+// Start question with server-authoritative timer
+function handleStartQuestion(room, questionIndex) {
+  const startRes = roomManager.startQuestion(room.code, room.hostId, questionIndex);
+  if (!startRes.ok) return startRes;
 
-// Join room
-function joinRoom(room, socketId, name) {
-  if (!room) return null;
-  if (room.status === 'ended') return null;
-  if (room.participants.has(socketId)) return room;
-  const participant = { name: name || 'Anonymous', score: 0, answers: [] };
-  room.participants.set(socketId, participant);
-  // If it's the first participant, they become host
-  if (!room.hostId && room.participants.size === 1) {
-    room.hostId = socketId;
-    room.hostName = name || 'Host';
+  // Emit to host
+  io.to(room.hostId).emit('questionStart', startRes.hostPayload);
+
+  // Emit to all participants in the room
+  room.participants.forEach((p, socketId) => {
+    io.to(socketId).emit('questionStart', startRes.participantPayload);
+  });
+
+  let remaining = startRes.q.time || 20;
+
+  // Authoritative server timer tick
+  room.timerHandle = setInterval(() => {
+    remaining--;
+    io.to(room.code).emit('timerTick', { remaining, total: startRes.q.time || 20 });
+
+    if (remaining <= 0) {
+      clearInterval(room.timerHandle);
+      room.timerHandle = null;
+      handleEndQuestion(room);
+    }
+  }, 1000);
+  if (room.timerHandle && typeof room.timerHandle.unref === 'function') {
+    room.timerHandle.unref();
   }
-  return room;
+
+  return { ok: true, questionIndex, totalQuestions: room.questions.length };
 }
 
-// Leave room
-function leaveRoom(room, socketId) {
-  if (room.participants.has(socketId)) {
-    room.participants.delete(socketId);
-  }
-  if (room.hostId === socketId && room.participants.size > 0) {
-    room.hostId = room.participants.keys().next().value;
-    room.hostName = room.participants.get(room.hostId).name;
-  } else if (room.participants.size === 0) {
-    room.code = generateCode();
-  }
-}
-
-// Calculate leaderboard
-function getLeaderboard(room) {
-  return Array.from(room.participants.values())
-    .filter(p => p.score > 0)
-    .map(p => ({ name: p.name, score: p.score }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 10);
-}
-
-// === Socket.IO Handlers ===
+// Socket.IO event handlers
 io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
+  console.log(`[Socket] Connected: ${socket.id}`);
 
-  // Create room (host)
-  socket.on('createRoom', (hostName, callback) => {
-    const room = createRoom(hostName || 'Host');
+  // Create room
+  socket.on('createRoom', (data, callback) => {
+    const hostName = typeof data === 'string' ? data : (data && data.hostName);
+    const room = roomManager.createRoom(socket.id, hostName || 'Host');
     socket.join(room.code);
-    room.hostId = socket.id;
-    room.hostName = hostName || 'Host';
-    callback({ code: room.code });
-    // Notify all clients in room
-    io.to(room.code).emit('roomCreated', { code: room.code, host: room.hostName });
-    // Send room state to host
-    socket.emit('roomState', room);
+
+    const publicData = roomManager.getPublicRoomData(room, true);
+    if (typeof callback === 'function') {
+      callback({ ok: true, code: room.code, hostName: room.hostName, room: publicData });
+    }
+    socket.emit('roomCreated', publicData);
   });
 
   // Join room
   socket.on('joinRoom', (data, callback) => {
-    const { code, name } = data;
-    const room = rooms.get(code);
-    if (!room) {
-      callback({ error: 'Room not found' });
+    if (!data || !data.code) {
+      if (typeof callback === 'function') callback({ error: 'Room code is required' });
       return;
     }
-    const result = joinRoom(room, socket.id, name);
-    if (!result) {
-      callback({ error: 'Failed to join' });
-      return;
-    }
-    socket.join(code);
-    socket.to(code).emit('userJoined', { name, total: room.participants.size });
-    // Send room state to the joining client
-    socket.emit('roomState', room);
-    // Send updated participant list to host
-    io.to(code).emit('participantsChanged', getParticipants(room));
-    if (callback) callback({ ok: true });
-  });
 
-  // Reset room (host)
-  socket.on('resetRoom', (roomCode, callback) => {
-    const room = rooms.get(roomCode);
-    if (!room || room.hostId !== socket.id) {
-      callback({ error: 'Unauthorized' });
+    const joinRes = roomManager.joinRoom(data.code, socket.id, data.name);
+    if (joinRes.error) {
+      if (typeof callback === 'function') callback({ error: joinRes.error });
       return;
     }
-    room.questions = [];
-    room.participants.clear();
-    room.currentQuestion = 0;
-    room.scores = [];
-    room.status = 'waiting';
-    socket.to(roomCode).emit('roomState', room);
-    callback({ ok: true });
-  });
 
-  // Join room
-  socket.on('joinRoom', (data, callback) => {
-    const { code, name } = data;
-    const room = rooms.get(code);
-    if (!room) {
-      callback({ error: 'Room not found' });
-      return;
+    const room = joinRes.room;
+    socket.join(room.code);
+
+    const publicData = roomManager.getPublicRoomData(room, false);
+    if (typeof callback === 'function') {
+      callback({
+        ok: true,
+        participantId: socket.id,
+        name: joinRes.participant.name,
+        room: publicData
+      });
     }
-    const result = joinRoom(room, socket.id, name);
-    if (!result) {
-      callback({ error: 'Failed to join' });
-      return;
-    }
-    socket.join(code);
-    socket.to(code).emit('userJoined', { name, total: room.participants.size });
-    // Send updated participant list to host
-    io.to(code).emit('participantsChanged', getParticipants(room));
-    // Send room state to the joining client
-    socket.emit('roomState', room);
-    if (callback) callback({ ok: true, room, participantId: socket.id });
+
+    // Notify joining client
+    socket.emit('roomJoined', {
+      participantId: socket.id,
+      name: joinRes.participant.name,
+      room: publicData
+    });
+
+    // Notify room of participant change
+    io.to(room.code).emit('participantsChanged', {
+      name: joinRes.participant.name,
+      total: room.participants.size,
+      participants: publicData.participants
+    });
   });
 
   // Set questions (host)
-  socket.on('setQuestions', (roomCode, questions, callback) => {
-    const room = rooms.get(roomCode);
-    if (!room || room.hostId !== socket.id) {
-      callback({ error: 'Unauthorized' });
+  socket.on('setQuestions', (data, maybeQuestions, maybeCallback) => {
+    let roomCode = typeof data === 'string' ? data : (data && data.code);
+    let questions = Array.isArray(data) ? data : (Array.isArray(maybeQuestions) ? maybeQuestions : (data && data.questions));
+    let callback = typeof maybeQuestions === 'function' ? maybeQuestions : maybeCallback;
+
+    const setRes = roomManager.setQuestions(roomCode, socket.id, questions);
+    if (setRes.error) {
+      if (typeof callback === 'function') callback({ error: setRes.error });
       return;
     }
-    room.questions = questions;
-    socket.to(roomCode).emit('questionsLoaded', questions);
-    socket.emit('roomState', room);
-    callback({ ok: true });
+
+    const room = roomManager.getRoom(roomCode);
+    io.to(room.code).emit('questionsLoaded', { count: setRes.count });
+    if (typeof callback === 'function') callback({ ok: true, count: setRes.count });
   });
 
-  // Start game
-  socket.on('startGame', (roomCode, callback) => {
-    const room = rooms.get(roomCode);
-    if (!room || room.hostId !== socket.id) {
-      callback({ error: 'Unauthorized' });
+  // Start game (host)
+  socket.on('startGame', (data, callback) => {
+    const roomCode = typeof data === 'string' ? data : (data && data.code);
+    const cb = typeof data === 'function' ? data : callback;
+    const room = roomManager.getRoom(roomCode);
+
+    if (!room) {
+      if (typeof cb === 'function') cb({ error: 'Room not found' });
+      return;
+    }
+    if (room.hostId !== socket.id) {
+      if (typeof cb === 'function') cb({ error: 'Unauthorized: Only host can start game' });
       return;
     }
     if (room.questions.length === 0) {
-      callback({ error: 'No questions set' });
+      if (typeof cb === 'function') cb({ error: 'No questions have been loaded yet' });
       return;
     }
-    room.status = 'playing';
-    room.currentQuestion = 0;
-    room.scores = [];
-    // Initialize scores for all participants
+
+    // Reset scores & streaks before fresh start
     room.participants.forEach(p => {
       p.score = 0;
+      p.streak = 0;
+      p.highestStreak = 0;
       p.answers = [];
     });
-    // Send first question
-    socket.to(roomCode).emit('startGame', room.currentQuestion);
-    if (callback) callback({ ok: true });
-  });
 
-  // Answer question
-  socket.on('answerQuestion', (roomCode, answerData) => {
-    const room = rooms.get(roomCode);
-    if (!room) return;
-    const participant = room.participants.get(socket.id);
-    if (!participant) return;
-    const q = room.questions[room.currentQuestion];
-    if (!q) return;
-    participant.answers.push({
-      questionId: q.id,
-      timeSpent: answerData.timeSpent || 0,
-      selected: answerData.selected || ''
-    });
-    // Check answer
-    if (q.type === 'truefalse') {
-      if (answerData.selected === q.correctAnswer) {
-        const score = Math.round(10000 * (q.timeBonus / Math.max(answerData.timeSpent, 1)));
-        participant.score += score;
-      }
-    } else if (q.type === 'multi') {
-      if (JSON.stringify(answerData.selected) === JSON.stringify(q.correctAnswer)) {
-        const score = Math.round(10000 * (q.timeBonus / Math.max(answerData.timeSpent, 1)));
-        participant.score += score;
-      }
-    } else if (q.type === 'open') {
-      // Open questions: check length of answer
-      const score = Math.min(500, Math.max(0, 500 - answerData.timeSpent * 5));
-      participant.score += score;
+    const startRes = handleStartQuestion(room, 0);
+    if (typeof cb === 'function') {
+      cb({ ok: Boolean(startRes.ok), error: startRes.error, questionIndex: 0, totalQuestions: room.questions.length });
     }
-    // Broadcast answer to everyone
-    io.to(roomCode).emit('answerReceived', {
-      answer: answerData.selected,
-      correct: q.correctAnswer,
-      timeSpent: answerData.timeSpent,
-      score: participant.score
-    });
   });
 
-  // Show results
-  socket.on('showResults', (roomCode, callback) => {
-    const room = rooms.get(roomCode);
+  // Next question (host)
+  socket.on('nextQuestion', (data, callback) => {
+    const roomCode = typeof data === 'string' ? data : (data && data.code);
+    const cb = typeof data === 'function' ? data : callback;
+    const room = roomManager.getRoom(roomCode);
+
     if (!room || room.hostId !== socket.id) {
-      callback({ error: 'Unauthorized' });
+      if (typeof cb === 'function') cb({ error: 'Unauthorized' });
       return;
     }
-    room.status = 'ended';
-    // Get leaderboard
-    room.scores = getLeaderboard(room);
-    io.to(roomCode).emit('results', room);
-    if (callback) callback({ ok: true });
+
+    if (room.currentQuestionIndex < room.questions.length - 1) {
+      const nextIdx = room.currentQuestionIndex + 1;
+      const startRes = handleStartQuestion(room, nextIdx);
+      if (typeof cb === 'function') {
+        cb({ ok: Boolean(startRes.ok), error: startRes.error, questionIndex: nextIdx, totalQuestions: room.questions.length });
+      }
+    } else {
+      // Last question completed -> show final game results
+      const endRes = roomManager.endGame(roomCode, socket.id);
+      io.to(room.code).emit('gameEnded', endRes);
+      if (typeof cb === 'function') cb({ ok: true, finished: true });
+    }
   });
 
-  // Next question (for preview mode)
-  socket.on('nextQuestion', (roomCode, callback) => {
-    const room = rooms.get(roomCode);
+  // Skip current question timer (host)
+  socket.on('skipQuestion', (data, callback) => {
+    const roomCode = typeof data === 'string' ? data : (data && data.code);
+    const cb = typeof data === 'function' ? data : callback;
+    const room = roomManager.getRoom(roomCode);
+
     if (!room || room.hostId !== socket.id) {
-      callback({ error: 'Unauthorized' });
+      if (typeof cb === 'function') cb({ error: 'Unauthorized' });
       return;
     }
-    if (room.currentQuestion < room.questions.length - 1) {
-      room.currentQuestion++;
-      socket.to(roomCode).emit('nextQuestion', room.currentQuestion);
+
+    handleEndQuestion(room);
+    if (typeof cb === 'function') cb({ ok: true });
+  });
+
+  // Participant submits answer
+  socket.on('answerQuestion', (arg1, arg2, arg3) => {
+    // Supports (code, answerData, callback) or ({ code, answer }, callback)
+    let roomCode = typeof arg1 === 'string' ? arg1 : (arg1 && arg1.code);
+    let answerData = typeof arg1 === 'object' && arg1.answer !== undefined ? arg1 : arg2;
+    let callback = typeof arg2 === 'function' ? arg2 : (typeof arg3 === 'function' ? arg3 : null);
+
+    const room = roomManager.getRoom(roomCode);
+    if (!room) {
+      if (callback) callback({ error: 'Room not found' });
+      return;
     }
+
+    const ansRes = roomManager.recordAnswer(roomCode, socket.id, answerData);
+    if (ansRes.error) {
+      if (callback) callback({ error: ansRes.error });
+      return;
+    }
+
     if (callback) callback({ ok: true });
+
+    // Broadcast live answer progress to room/host
+    io.to(room.code).emit('answerReceived', {
+      totalAnswered: ansRes.totalAnswered,
+      totalParticipants: ansRes.totalParticipants
+    });
+
+    // If all participants have answered, automatically reveal without waiting for timer
+    if (ansRes.allAnswered) {
+      const autoEndTimer = setTimeout(() => {
+        if (room.status === 'question') {
+          handleEndQuestion(room);
+        }
+      }, 600);
+      if (autoEndTimer && typeof autoEndTimer.unref === 'function') {
+        autoEndTimer.unref();
+      }
+    }
+  });
+
+  // Show final results (host)
+  socket.on('showResults', (data, callback) => {
+    const roomCode = typeof data === 'string' ? data : (data && data.code);
+    const cb = typeof data === 'function' ? data : callback;
+    const room = roomManager.getRoom(roomCode);
+
+    if (!room || room.hostId !== socket.id) {
+      if (typeof cb === 'function') cb({ error: 'Unauthorized' });
+      return;
+    }
+
+    const endRes = roomManager.endGame(roomCode, socket.id);
+    io.to(room.code).emit('gameEnded', endRes);
+    if (typeof cb === 'function') cb(endRes);
+  });
+
+  // Reset room (host)
+  socket.on('resetRoom', (data, callback) => {
+    const roomCode = typeof data === 'string' ? data : (data && data.code);
+    const cb = typeof data === 'function' ? data : callback;
+
+    const resetRes = roomManager.resetRoom(roomCode, socket.id);
+    if (resetRes.error) {
+      if (typeof cb === 'function') cb({ error: resetRes.error });
+      return;
+    }
+
+    io.to(roomCode).emit('roomReset', resetRes.room);
+    if (typeof cb === 'function') cb({ ok: true, room: resetRes.room });
   });
 
   // Disconnect
   socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
+    console.log(`[Socket] Disconnected: ${socket.id}`);
+    const leaveRes = roomManager.leaveRoom(socket.id);
+    if (leaveRes && leaveRes.room) {
+      const room = leaveRes.room;
+      if (leaveRes.wasHost) {
+        io.to(room.code).emit('hostDisconnected', { message: 'Host has disconnected.' });
+      } else {
+        const publicData = roomManager.getPublicRoomData(room, false);
+        io.to(room.code).emit('participantsChanged', {
+          name: leaveRes.participant ? leaveRes.participant.name : 'A participant',
+          total: room.participants.size,
+          participants: publicData.participants
+        });
+      }
+    }
   });
 });
 
-// Helpers
-function getParticipants(room) {
-  return Array.from(room.participants.values()).map(p => ({
-    id: p.id,
-    name: p.name,
-    score: p.score
-  }));
-}
+// Periodic cleanup of stale rooms (every 30 mins)
+const cleanupInterval = setInterval(() => {
+  roomManager.cleanupStaleRooms();
+}, 1000 * 60 * 30);
+cleanupInterval.unref();
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`Quiz server running on port ${PORT}`);
-  console.log(`Public: http://localhost:${PORT}`);
-});
+
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log(`-----------------------------------------------`);
+    console.log(`🎯 QuizLoom Server running on port ${PORT}`);
+    console.log(`🔗 Local URL: http://localhost:${PORT}`);
+    console.log(`-----------------------------------------------`);
+  });
+}
+
+module.exports = { app, server, io, roomManager };
