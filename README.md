@@ -1,12 +1,55 @@
 # QuizLoom 🎯 - Live Multiplayer Quiz Platform
 
-A modern, high-performance real-time quiz platform inspired by Kahoot and Quizizz, built with Node.js, Express, and Socket.IO. Supports 250+ concurrent participants with authoritative server-side timing, speed scoring, answer distribution statistics, and animated winner podiums.
+A high-performance real-time multiplayer quiz platform inspired by Kahoot and Quizizz, engineered to run on **Cloudflare Workers**, **Cloudflare Durable Objects**, **Cloudflare D1**, and **Native WebSockets**.
+
+Supports 250+ concurrent participants with authoritative server-side timing, speed scoring, answer distribution statistics, and animated winner podiums.
+
+---
+
+## 🏗️ Architecture
+
+```
+                                  [ Cloudflare Global Network ]
+                                                │
+                          ┌─────────────────────┴─────────────────────┐
+                          ▼                                           ▼
+                 [ Cloudflare Assets ]                     [ Cloudflare Worker ]
+                  (public/index.html)                          (src/index.js)
+                 Zero External Scripts                         Routes & APIs
+                          │                                           │
+                          │ Upgrade: WebSocket                        │
+                          └─────────────────────┬─────────────────────┘
+                                                ▼
+                                    [ Cloudflare Durable Object ]
+                                            (src/room.js)
+                                  Single Coordination Point Per Room
+                                  • Native WebSockets (Hibernation)
+                                  • Authoritative Timer Countdown
+                                  • Real-Time Broadcast & Scoring
+                                                │
+                                                ▼  (Game Over Save)
+                                      [ Cloudflare D1 Database ]
+                                              (schema.sql)
+                                   • Persistent Quizzes & Questions
+                                   • Game Session Leaderboard Archives
+```
 
 ---
 
 ## ✨ Features
 
-- **Authoritative Server Timer & Cheat Prevention**: Question answers and countdowns are strictly validated server-side. Correct answers are stripped from participant payloads during questions to prevent inspection cheating.
+- **Cloudflare Edge Deployment**:
+  - **Durable Objects (`QuizRoom`)**: Single-point-of-coordination per room code. Handles WebSocket Hibernation, live player state, broadcasts, and countdowns.
+  - **Cloudflare D1**: Serverless SQLite database storing custom quizzes, questions, and historical game results.
+  - **Native WebSockets**: Zero external script dependencies (`socket.io` removed). Uses 100% standard browser `WebSocket`.
+- **User Authentication & Cloud Question Bank**:
+  - Secure user registration and login with salt + PBKDF2 SHA-256 password hashing via standard Web Crypto API.
+  - Persistent user sessions via Bearer tokens.
+  - **Question Preparation & Library ("My Quizzes")**: Prepare questions ahead of time, save them to your personal question bank in Cloudflare D1, edit or reorder them, and load them into live game rooms anytime with 1 click!
+  - Seamless Host Lobby integration with instant switching between preset packs and personal prepared quizzes.
+- **Authoritative Server Timer & Cheat Prevention**:
+  - Server-side 1-second timer loop.
+  - Correct answers are stripped from participant payloads during questions to prevent client inspection cheating.
 - **Dynamic Speed & Streak Scoring**:
   - Base points: 500
   - Speed bonus: Up to +500 points depending on response speed
@@ -22,7 +65,7 @@ A modern, high-performance real-time quiz platform inspired by Kahoot and Quiziz
   - 💡 General Knowledge & Pop Culture
 - **In-App Custom Quiz Builder**:
   - Add, edit, or delete questions directly from the Host Lobby
-  - Set custom time limits (5–120s) and fun explanations
+  - Set custom time limits (1–120s) and fun explanations
   - 📥 Export / 📤 Import quizzes as JSON files
 - **Immersive User Experience**:
   - Web Audio API synthesized sound effects (correct chime, wrong buzzer, countdown ticks, fanfare) with a mute toggle
@@ -32,23 +75,54 @@ A modern, high-performance real-time quiz platform inspired by Kahoot and Quiziz
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Local Development)
 
 ### 1. Install Dependencies
 ```bash
 npm install
 ```
 
-### 2. Start the Server
-```bash
-npm start
-```
-The server will start at: **http://localhost:3000**
-
-### 3. Run Automated Tests
+### 2. Run Automated Test Suite (17 Tests)
 ```bash
 npm test
 ```
+
+### 3. Initialize Local Cloudflare D1 Database
+```bash
+npm run d1:migrate
+```
+
+### 4. Start Local Cloudflare Worker & Durable Objects
+```bash
+npm run dev
+```
+Wrangler will launch local Miniflare simulation at: **http://localhost:8787**
+
+---
+
+## ☁️ Deploying to Cloudflare Workers
+
+### 1. Login to Cloudflare
+```bash
+npx wrangler login
+```
+
+### 2. Create your Production D1 Database
+```bash
+npx wrangler d1 create quiz-loom-db
+```
+Copy the `database_id` output and update `d1_databases[0].database_id` inside [wrangler.jsonc](file:///c:/Users/USER/Documents/xampp/htdocs/quiz-loom/quiz-loom/wrangler.jsonc).
+
+### 3. Run Production Database Migrations
+```bash
+npm run d1:migrate:prod
+```
+
+### 4. Deploy Worker, Durable Objects & Assets
+```bash
+npm run deploy
+```
+Your live quiz platform is now deployed globally across Cloudflare's network!
 
 ---
 
@@ -74,15 +148,20 @@ npm test
 
 ```
 quiz-loom/
-├── presets.js           # Built-in trivia question packs
-├── roomManager.js       # Game state machine, room lifecycle, scoring algorithms
-├── server.js            # Express server, Socket.IO handlers, REST API endpoints
+├── wrangler.jsonc       # Cloudflare Workers, Durable Objects, and D1 configuration
+├── schema.sql           # D1 SQL database schema
+├── src/
+│   ├── index.js         # Cloudflare Worker router (HTTP & WebSocket upgrades)
+│   ├── room.js          # QuizRoom Durable Object (WebSockets, Timer, D1 save)
+│   └── gameLogic.js     # Pure scoring, answer checking, and sanitization
 ├── public/
-│   ├── index.html       # Single-page multiplayer UI with Web Audio & Confetti
-│   └── vendor/
-│       └── socket.io.min.js  # Offline Socket.IO client fallback
+│   └── index.html       # Single-page UI with Native WebSockets, Web Audio & Confetti
+├── presets.js           # Built-in trivia question packs
 ├── test/
-│   ├── roomManager.test.js   # Unit tests for scoring, room manager, and question logic
-│   └── server.test.js        # Integration tests for REST APIs and Socket.IO workflows
-└── package.json         # Project metadata and test scripts
+│   ├── cloudflare.test.js    # Tests for Cloudflare Worker, Durable Object & D1
+│   ├── encoding.test.js      # Tests for packet serialization
+│   ├── roomManager.test.js   # Unit tests for scoring and room management
+│   ├── server.test.js        # Integration tests for server flows
+│   └── timer.test.js         # Tests for authoritative countdown timer
+└── package.json         # Project metadata, scripts, and dependencies
 ```

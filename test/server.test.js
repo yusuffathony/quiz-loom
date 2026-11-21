@@ -183,3 +183,125 @@ test('Socket Flow: createRoom, joinRoom, setQuestions, startGame, answerQuestion
   // Room is cleaned up
   assert.strictEqual(roomManager.getRoom(createdRoomCode), null);
 });
+
+test('Node Express Server: Auth & Quiz Library CRUD endpoints', async () => {
+  // Helper to simulate express request/response
+  function requestApp(method, url, body = null, headers = {}) {
+    return new Promise((resolve) => {
+      const req = {
+        method,
+        url,
+        body,
+        headers: {
+          'content-type': 'application/json',
+          ...headers
+        },
+        params: {}
+      };
+
+      // Match /api/quizzes/:id
+      const quizMatch = url.match(/^\/api\/quizzes\/([^/?#]+)$/);
+      if (quizMatch) {
+        req.params.id = quizMatch[1];
+      }
+
+      let statusCode = 200;
+      const res = {
+        statusCode: 200,
+        status(code) {
+          statusCode = code;
+          this.statusCode = code;
+          return this;
+        },
+        setHeader() {},
+        getHeader() {},
+        json(data) {
+          resolve({ status: statusCode, body: data });
+        },
+        end() {
+          resolve({ status: statusCode, body: null });
+        }
+      };
+      app.handle(req, res);
+    });
+  }
+
+  // 1. Register User
+  const regRes = await requestApp('POST', '/api/auth/register', {
+    username: 'NodeTeacher',
+    password: 'password123'
+  });
+  assert.strictEqual(regRes.status, 201);
+  assert.strictEqual(regRes.body.ok, true);
+  assert.strictEqual(regRes.body.user.username, 'NodeTeacher');
+  const token = regRes.body.token;
+  assert.ok(token);
+
+  // 2. /api/auth/me
+  const meRes = await requestApp('GET', '/api/auth/me', null, {
+    authorization: `Bearer ${token}`
+  });
+  assert.strictEqual(meRes.status, 200);
+  assert.strictEqual(meRes.body.user.username, 'NodeTeacher');
+
+  // 3. Create Prepared Quiz
+  const createRes = await requestApp('POST', '/api/quizzes', {
+    title: 'Node JS Mastery',
+    description: 'Server side JavaScript questions',
+    questions: [
+      {
+        text: 'What is the default package manager for Node.js?',
+        options: ['npm', 'pip', 'gem', 'cargo'],
+        correctAnswer: 'npm',
+        time: 20
+      }
+    ]
+  }, { authorization: `Bearer ${token}` });
+  assert.strictEqual(createRes.status, 201);
+  const quizId = createRes.body.quizId;
+  assert.ok(quizId);
+
+  // 4. List Prepared Quizzes
+  const listRes = await requestApp('GET', '/api/quizzes', null, {
+    authorization: `Bearer ${token}`
+  });
+  assert.strictEqual(listRes.status, 200);
+  assert.strictEqual(listRes.body.quizzes.length, 1);
+  assert.strictEqual(listRes.body.quizzes[0].id, quizId);
+
+  // 5. Retrieve Quiz with questions
+  const getRes = await requestApp('GET', `/api/quizzes/${quizId}`);
+  assert.strictEqual(getRes.status, 200);
+  assert.strictEqual(getRes.body.quiz.title, 'Node JS Mastery');
+  assert.strictEqual(getRes.body.quiz.questions.length, 1);
+  assert.strictEqual(getRes.body.quiz.questions[0].correctAnswer, 'npm');
+
+  // 6. Update Quiz
+  const putRes = await requestApp('PUT', `/api/quizzes/${quizId}`, {
+    title: 'Node JS & Express Mastery',
+    questions: [
+      ...getRes.body.quiz.questions,
+      {
+        text: 'Is Node.js single-threaded on the event loop?',
+        type: 'truefalse',
+        options: ['True', 'False'],
+        correctAnswer: 'True',
+        time: 15
+      }
+    ]
+  }, { authorization: `Bearer ${token}` });
+  assert.strictEqual(putRes.status, 200);
+  assert.strictEqual(putRes.body.count, 2);
+
+  // 7. Delete Quiz
+  const delRes = await requestApp('DELETE', `/api/quizzes/${quizId}`, null, {
+    authorization: `Bearer ${token}`
+  });
+  assert.strictEqual(delRes.status, 200);
+
+  // 8. Logout
+  const logoutRes = await requestApp('POST', '/api/auth/logout', null, {
+    authorization: `Bearer ${token}`
+  });
+  assert.strictEqual(logoutRes.status, 200);
+});

@@ -12,10 +12,37 @@ const io = new Server(server, {
   maxHttpBufferSize: 1024 * 1024 * 10 // 10MB
 });
 
+const {
+  hashPassword,
+  verifyPassword,
+  generateSalt,
+  generateToken,
+  extractBearerToken,
+  generateRandomHex
+} = require('./src/auth.js');
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 const roomManager = new RoomManager();
+
+// In-memory storage for Node runtime
+const users = new Map(); // id -> { id, username, passwordHash, salt, createdAt }
+const userSessions = new Map(); // token -> { token, userId, expiresAt }
+const quizzes = new Map(); // id -> { id, userId, title, description, createdAt, questions }
+
+function getAuthenticatedUser(req) {
+  const token = extractBearerToken(req);
+  if (!token) return null;
+  const session = userSessions.get(token);
+  if (!session) return null;
+  if (new Date(session.expiresAt) < new Date()) {
+    userSessions.delete(token);
+    return null;
+  }
+  const user = users.get(session.userId);
+  return user ? { id: user.id, username: user.username, token } : null;
+}
 
 // API routes
 app.get('/api/presets', (req, res) => {
@@ -29,6 +56,242 @@ app.get('/health', (req, res) => {
     rooms: roomManager.rooms.size,
     timestamp: new Date().toISOString()
   });
+});
+
+// Auth Routes
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const username = (req.body.username || '').trim();
+    const password = req.body.password || '';
+
+    if (!username || username.length < 3) {
+      return res.status(400).json({ ok: false, error: 'Username must be at least 3 characters' });
+    }
+    if (!password || password.length < 4) {
+      return res.status(400).json({ ok: false, error: 'Password must be at least 4 characters' });
+    }
+
+    // Check duplicate
+    for (const u of users.values()) {
+      if (u.username.toLowerCase() === username.toLowerCase()) {
+        return res.status(400).json({ ok: false, error: 'Username is already taken' });
+      }
+    }
+
+    const userId = 'u_' + generateRandomHex(12);
+    const salt = generateSalt();
+    const passwordHash = await hashPassword(password, salt);
+
+    const user = {
+      id: userId,
+      username,
+      passwordHash,
+      salt,
+      createdAt: new Date().toISOString()
+    };
+    users.set(userId, user);
+
+    const token = generateToken();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    userSessions.set(token, { token, userId, expiresAt });
+
+    res.status(201).json({
+      ok: true,
+      token,
+      user: { id: userId, username }
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const username = (req.body.username || '').trim();
+    const password = req.body.password || '';
+
+    if (!username || !password) {
+      return res.status(400).json({ ok: false, error: 'Username and password are required' });
+    }
+
+    let foundUser = null;
+    for (const u of users.values()) {
+      if (u.username.toLowerCase() === username.toLowerCase()) {
+        foundUser = u;
+        break;
+      }
+    }
+
+    if (!foundUser) {
+      return res.status(401).json({ ok: false, error: 'Invalid username or password' });
+    }
+
+    const valid = await verifyPassword(password, foundUser.salt, foundUser.passwordHash);
+    if (!valid) {
+      return res.status(401).json({ ok: false, error: 'Invalid username or password' });
+    }
+
+    const token = generateToken();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    userSessions.set(token, { token, userId: foundUser.id, expiresAt });
+
+    res.json({
+      ok: true,
+      token,
+      user: { id: foundUser.id, username: foundUser.username }
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/api/auth/me', (req, res) => {
+  const user = getAuthenticatedUser(req);
+  if (!user) {
+    return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  }
+  res.json({ ok: true, user: { id: user.id, username: user.username } });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  const token = extractBearerToken(req);
+  if (token) {
+    userSessions.delete(token);
+  }
+  res.json({ ok: true });
+});
+
+// Quizzes CRUD
+app.get('/api/quizzes', (req, res) => {
+  const user = getAuthenticatedUser(req);
+  const list = [];
+
+  for (const q of quizzes.values()) {
+    if (user) {
+      if (q.userId === user.id) {
+        list.push({
+          id: q.id,
+          title: q.title,
+          description: q.description,
+          userId: q.userId,
+          created_at: q.createdAt,
+          question_count: (q.questions || []).length
+        });
+      }
+    } else {
+      list.push({
+        id: q.id,
+        title: q.title,
+        description: q.description,
+        userId: q.userId,
+        created_at: q.createdAt,
+        question_count: (q.questions || []).length
+      });
+    }
+  }
+
+  res.json({ ok: true, quizzes: list.reverse() });
+});
+
+app.get('/api/quizzes/:id', (req, res) => {
+  const quiz = quizzes.get(req.params.id);
+  if (!quiz) {
+    return res.status(404).json({ ok: false, error: 'Quiz not found' });
+  }
+  res.json({
+    ok: true,
+    quiz: {
+      id: quiz.id,
+      title: quiz.title,
+      description: quiz.description,
+      userId: quiz.userId,
+      created_at: quiz.createdAt,
+      questions: quiz.questions || []
+    }
+  });
+});
+
+app.post('/api/quizzes', (req, res) => {
+  try {
+    const user = getAuthenticatedUser(req);
+    const userId = user ? user.id : (req.body.userId || null);
+    const quizId = req.body.id || `quiz_${Date.now()}_${generateRandomHex(4)}`;
+    const title = (req.body.title || 'Untitled Quiz').trim();
+    const description = (req.body.description || '').trim();
+    const questions = Array.isArray(req.body.questions) ? req.body.questions : [];
+
+    const newQuiz = {
+      id: quizId,
+      userId,
+      title,
+      description,
+      createdAt: new Date().toISOString(),
+      questions: questions.map((q, idx) => ({
+        id: q.id !== undefined ? q.id : idx + 1,
+        text: q.text || `Question ${idx + 1}`,
+        type: q.type || 'quiz',
+        options: q.options || [],
+        correctAnswer: q.correctAnswer !== undefined ? q.correctAnswer : '',
+        time: q.time || 20,
+        explanation: q.explanation || ''
+      }))
+    };
+
+    quizzes.set(quizId, newQuiz);
+    res.status(201).json({ ok: true, quizId, title, count: newQuiz.questions.length });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.put('/api/quizzes/:id', (req, res) => {
+  const user = getAuthenticatedUser(req);
+  if (!user) {
+    return res.status(401).json({ ok: false, error: 'Unauthorized. Please log in.' });
+  }
+  const quiz = quizzes.get(req.params.id);
+  if (!quiz) {
+    return res.status(404).json({ ok: false, error: 'Quiz not found' });
+  }
+  if (quiz.userId && quiz.userId !== user.id) {
+    return res.status(403).json({ ok: false, error: 'Forbidden. You do not own this quiz.' });
+  }
+
+  const title = (req.body.title || quiz.title).trim();
+  const description = req.body.description !== undefined ? req.body.description.trim() : quiz.description;
+  const questions = Array.isArray(req.body.questions) ? req.body.questions : quiz.questions;
+
+  quiz.title = title;
+  quiz.description = description;
+  quiz.questions = questions.map((q, idx) => ({
+    id: q.id !== undefined ? q.id : idx + 1,
+    text: q.text || `Question ${idx + 1}`,
+    type: q.type || 'quiz',
+    options: q.options || [],
+    correctAnswer: q.correctAnswer !== undefined ? q.correctAnswer : '',
+    time: q.time || 20,
+    explanation: q.explanation || ''
+  }));
+
+  quizzes.set(req.params.id, quiz);
+  res.json({ ok: true, quizId: req.params.id, count: quiz.questions.length });
+});
+
+app.delete('/api/quizzes/:id', (req, res) => {
+  const user = getAuthenticatedUser(req);
+  if (!user) {
+    return res.status(401).json({ ok: false, error: 'Unauthorized. Please log in.' });
+  }
+  const quiz = quizzes.get(req.params.id);
+  if (!quiz) {
+    return res.status(404).json({ ok: false, error: 'Quiz not found' });
+  }
+  if (quiz.userId && quiz.userId !== user.id) {
+    return res.status(403).json({ ok: false, error: 'Forbidden. You do not own this quiz.' });
+  }
+
+  quizzes.delete(req.params.id);
+  res.json({ ok: true, message: 'Quiz deleted successfully' });
 });
 
 // Broadcast question end & results

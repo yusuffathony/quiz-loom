@@ -926,6 +926,64 @@ main {
   display: grid;
 }
 
+/* User pill & library styles */
+.user-badge {
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid var(--border-glow);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #a5b4fc;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.quiz-library-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  transition: all 0.2s;
+}
+
+.quiz-library-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--border-glow);
+}
+
+.quiz-card-info {
+  flex: 1;
+}
+
+.quiz-card-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.quiz-card-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.quiz-card-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+  display: grid;
+}
+
 .modal-content {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -989,6 +1047,16 @@ main {
     <span class="brand-name">QuizLoom</span>
   </a>
   <div class="nav-actions">
+    <div id="navAuthContainer" style="display:flex;align-items:center;gap:10px">
+      <!-- Unauthenticated State -->
+      <button class="btn btn-secondary btn-sm" id="navLoginBtn" onclick="openAuthModal('login')">🔐 Sign In</button>
+      
+      <!-- Authenticated State (Hidden initially) -->
+      <div id="navUserBadge" class="user-badge" style="display:none">👤 <span id="navUserName">User</span></div>
+      <button class="btn btn-secondary btn-sm" id="navMyQuizzesBtn" onclick="openMyQuizzesModal()" style="display:none">📚 My Quizzes</button>
+      <button class="btn btn-secondary btn-sm" id="navLogoutBtn" onclick="doLogout()" style="display:none" title="Log Out">Logout</button>
+    </div>
+
     <div class="status-pill">
       <span class="status-dot" id="statusDot"></span>
       <span id="statusText">Connected</span>
@@ -1003,15 +1071,22 @@ main {
     <div class="hero">
       <div class="hero-badge">⚡ Real-time Multiplayer Quiz Platform</div>
       <h1 class="hero-title">Interactive Quizzes <span>Made Effortless</span></h1>
-      <p class="hero-desc">Host engaging trivia and classroom competitions with live leaderboards, speed scoring, and instant podium celebrations.</p>
+      <p class="hero-desc">Host engaging trivia, prepare customized questions in advance, and play live with real-time scoring and instant podiums.</p>
     </div>
 
-    <div class="cards-grid">
+    <div class="cards-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr))">
       <div class="card-action">
         <div class="card-icon">🌟</div>
         <h2 class="card-title">Host a Quiz</h2>
-        <p class="card-desc">Create a room code, load preset trivia or build custom questions, and control the live game on your screen.</p>
+        <p class="card-desc">Create a live room code, load your prepared questions or trivia presets, and lead the game on your screen.</p>
         <button class="btn btn-primary" style="width:100%" onclick="goHost()">Create Room</button>
+      </div>
+
+      <div class="card-action">
+        <div class="card-icon">📝</div>
+        <h2 class="card-title">Prepare Questions</h2>
+        <p class="card-desc">Log in, write custom questions, save them to your personal library, and load them into games anytime.</p>
+        <button class="btn btn-secondary" style="width:100%" onclick="openMyQuizzesModal()">My Question Bank</button>
       </div>
 
       <div class="card-action">
@@ -1082,11 +1157,21 @@ main {
       <div class="panel">
         <div class="panel-title">
           <span>📚 Quiz Questions</span>
-          <button class="btn btn-secondary btn-sm" onclick="openQuizBuilder()">✏️ Builder</button>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-secondary btn-sm" onclick="openMyQuizzesModal()">📁 Library</button>
+            <button class="btn btn-secondary btn-sm" onclick="openQuizBuilder()">✏️ Builder</button>
+          </div>
         </div>
-        <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:12px">Select a preset or custom quiz pack:</div>
+        
+        <!-- Tab selector between Presets and My Prepared Quizzes -->
+        <div style="display:flex;gap:8px;margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:10px">
+          <button class="btn btn-sm" id="tabLobbyPresets" onclick="switchLobbyQuizTab('presets')" style="padding:6px 14px;font-size:0.85rem;background:var(--primary);color:#fff">⭐ Presets</button>
+          <button class="btn btn-secondary btn-sm" id="tabLobbyMyQuizzes" onclick="switchLobbyQuizTab('myquizzes')" style="padding:6px 14px;font-size:0.85rem">📁 My Prepared Quizzes <span id="lobbyMyQuizBadge"></span></button>
+        </div>
+
         <div class="preset-list" id="presetList"></div>
-        <div style="font-size:0.85rem;color:var(--green);font-weight:700" id="currentQuizLoadedMsg">✓ 5 Questions Ready</div>
+        <div class="preset-list" id="lobbyMyQuizzesList" style="display:none"></div>
+        <div style="font-size:0.85rem;color:var(--green);font-weight:700;margin-top:10px" id="currentQuizLoadedMsg">✓ 5 Questions Ready</div>
       </div>
     </div>
   </section>
@@ -1231,15 +1316,81 @@ main {
   </section>
 </main>
 
+<!-- Auth Modal -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal-content" style="max-width:420px">
+    <div class="modal-header">
+      <h2 style="font-size:1.3rem;font-weight:800" id="authModalTitle">Sign In to QuizLoom</h2>
+      <button class="icon-btn" onclick="closeAuthModal()">✕</button>
+    </div>
+    
+    <div style="display:flex;gap:8px;border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:16px">
+      <button class="btn btn-sm" id="authTabLogin" onclick="switchAuthTab('login')" style="background:var(--primary);color:#fff">Sign In</button>
+      <button class="btn btn-secondary btn-sm" id="authTabRegister" onclick="switchAuthTab('register')">Create Account</button>
+    </div>
+
+    <div id="authAlert" style="display:none;padding:10px 14px;border-radius:var(--radius-sm);margin-bottom:16px;font-size:0.85rem"></div>
+
+    <form onsubmit="handleAuthSubmit(event)">
+      <div class="input-group">
+        <label class="input-label" for="authUsername">Username</label>
+        <input class="input-field" id="authUsername" type="text" minlength="3" placeholder="e.g. QuizMaster" required autocomplete="username">
+      </div>
+      <div class="input-group">
+        <label class="input-label" for="authPassword">Password</label>
+        <input class="input-field" id="authPassword" type="password" minlength="4" placeholder="••••••••" required autocomplete="current-password">
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:24px">
+        <button type="button" class="btn btn-secondary" onclick="closeAuthModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="btnAuthSubmit">Sign In</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- My Quizzes Library Modal -->
+<div class="modal-overlay" id="myQuizzesModal">
+  <div class="modal-content" style="max-width:760px">
+    <div class="modal-header">
+      <div style="display:flex;align-items:center;gap:12px">
+        <h2 style="font-size:1.4rem;font-weight:800">📚 My Prepared Quizzes</h2>
+        <span class="status-pill" id="myQuizzesCount">0 Quizzes</span>
+      </div>
+      <button class="icon-btn" onclick="closeMyQuizzesModal()">✕</button>
+    </div>
+    <div style="font-size:0.9rem;color:var(--text-muted);margin-bottom:16px">
+      Prepare and store quizzes ahead of time. Load questions into live games with 1 click or edit them anytime.
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:0.85rem;color:var(--text-muted)">Your Saved Packs</div>
+      <button class="btn btn-primary btn-sm" onclick="startNewPreparedQuiz()">+ Prepare New Quiz</button>
+    </div>
+    <div id="myQuizzesList" style="display:flex;flex-direction:column;gap:12px;max-height:450px;overflow-y:auto;padding-right:4px">
+      <!-- Injected dynamically -->
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:12px;border-top:1px solid var(--border);padding-top:16px;margin-top:20px">
+      <button class="btn btn-secondary" onclick="closeMyQuizzesModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- Quiz Builder Modal -->
 <div class="modal-overlay" id="quizBuilderModal">
   <div class="modal-content">
     <div class="modal-header">
-      <h2 style="font-size:1.4rem;font-weight:800">Custom Quiz Builder</h2>
+      <h2 style="font-size:1.4rem;font-weight:800" id="quizBuilderHeading">Custom Quiz Builder</h2>
       <button class="icon-btn" onclick="closeQuizBuilder()">✕</button>
     </div>
-    <div style="font-size:0.9rem;color:var(--text-muted);margin-bottom:16px">
-      Create or customize questions for your live quiz room.
+    
+    <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:var(--radius-md);padding:16px;margin-bottom:20px">
+      <div class="input-group" style="margin-bottom:12px">
+        <label class="input-label" for="builderQuizTitle">Quiz Pack Title</label>
+        <input class="input-field" id="builderQuizTitle" placeholder="e.g. World Geography Challenge" value="">
+      </div>
+      <div class="input-group">
+        <label class="input-label" for="builderQuizDesc">Description (Optional)</label>
+        <input class="input-field" id="builderQuizDesc" placeholder="e.g. 10 questions on capitals, flags and rivers..." value="">
+      </div>
     </div>
 
     <div id="builderQuestionsList" style="display:flex;flex-direction:column;gap:16px;margin-bottom:20px"></div>
@@ -1250,29 +1401,110 @@ main {
       <button class="btn btn-secondary btn-sm" onclick="importQuizJSON()">📤 Import JSON</button>
     </div>
 
-    <div style="display:flex;justify-content:flex-end;gap:12px;border-top:1px solid var(--border);padding-top:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:16px;flex-wrap:wrap;gap:12px">
       <button class="btn btn-secondary" onclick="closeQuizBuilder()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveCustomQuiz()">Apply Questions</button>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-secondary" onclick="saveCustomQuiz(false)">Apply to Room Only</button>
+        <button class="btn btn-primary" id="btnSaveToLibrary" onclick="saveCustomQuiz(true)">💾 Save to My Quizzes & Apply</button>
+      </div>
     </div>
   </div>
 </div>
 
 <div id="toast"></div>
 
-<!-- Scripts -->
-<script src="/socket.io/socket.io.js"></script>
-<script>
-if (!window.io) {
-  document.write('<script src="/vendor/socket.io.min.js"><\/script>');
-}
-</script>
-
 <script>
 /* ==========================================================================
-   QuizLoom Client State & Architecture
+   QuizLoom Native WebSocket Client for Cloudflare Workers & Durable Objects
    ========================================================================== */
 
-let socket = null;
+class NativeQuizSocket {
+  constructor() {
+    this.ws = null;
+    this.listeners = new Map();
+    this.connected = false;
+  }
+
+  connect(code, name, role = 'player') {
+    if (this.ws) {
+      try { this.ws.close(); } catch(e) {}
+    }
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    const sessionId = 's_' + Math.random().toString(36).substring(2, 9);
+    const url = `${protocol}//${host}/ws?code=${encodeURIComponent(code)}&name=${encodeURIComponent(name)}&role=${encodeURIComponent(role)}&sessionId=${encodeURIComponent(sessionId)}`;
+
+    try {
+      this.ws = new WebSocket(url);
+    } catch (e) {
+      console.error('WebSocket connection error:', e);
+      return;
+    }
+
+    this.ws.onopen = () => {
+      this.connected = true;
+      const dot = document.getElementById('statusDot');
+      const text = document.getElementById('statusText');
+      if (dot) dot.classList.remove('offline');
+      if (text) text.textContent = 'Connected';
+      this.trigger('connect');
+    };
+
+    this.ws.onclose = () => {
+      this.connected = false;
+      const dot = document.getElementById('statusDot');
+      const text = document.getElementById('statusText');
+      if (dot) dot.classList.add('offline');
+      if (text) text.textContent = 'Disconnected';
+      this.trigger('disconnect');
+    };
+
+    this.ws.onerror = (err) => {
+      console.error('[WebSocket Error]', err);
+    };
+
+    this.ws.onmessage = (event) => {
+      try {
+        const { type, data } = JSON.parse(event.data);
+        this.trigger(type, data);
+      } catch (err) {
+        console.error('Failed to parse WebSocket message:', err);
+      }
+    };
+  }
+
+  emit(type, data = {}) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type, data }));
+    } else {
+      console.warn('WebSocket not open, dropping event:', type);
+    }
+  }
+
+  on(event, callback) {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, new Set());
+    }
+    this.listeners.get(event).add(callback);
+  }
+
+  trigger(event, data) {
+    if (this.listeners.has(event)) {
+      this.listeners.get(event).forEach(cb => {
+        try { cb(data); } catch (e) { console.error(e); }
+      });
+    }
+  }
+
+  disconnect() {
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+  }
+}
+
+const socket = new NativeQuizSocket();
 let isHost = false;
 let currentRoomCode = null;
 let myParticipantId = null;
@@ -1281,6 +1513,11 @@ let currentQuiz = [];
 let soundEnabled = true;
 let hasAnsweredCurrent = false;
 let presetsCache = [];
+let authToken = localStorage.getItem('ql_auth_token') || null;
+let currentUser = null;
+let userQuizzesCache = [];
+let editingPreparedQuizId = null;
+let currentLobbyQuizTab = 'presets'; // 'presets' | 'myquizzes'
 
 const EMOJIS = ['🦊', '🦉', '🚀', '⚡', '🐯', '🐼', '🦄', '🐬', '🦁', '🦅', '🎯', '🔥'];
 
@@ -1483,107 +1720,109 @@ function generateRandomName() {
 
 /* --- Socket Connection Initialization --- */
 function initSocket() {
-  if (socket) return;
-  try {
-    socket = io();
+  if (initSocket._done) return;
+  initSocket._done = true;
 
-    socket.on('connect', () => {
-      $('statusDot').classList.remove('offline');
-      $('statusText').textContent = 'Connected';
-    });
+  socket.on('connect', () => {
+    $('statusDot').classList.remove('offline');
+    $('statusText').textContent = 'Connected';
+  });
 
-    socket.on('disconnect', () => {
-      $('statusDot').classList.add('offline');
-      $('statusText').textContent = 'Disconnected';
-      toast('Connection lost. Reconnecting...');
-    });
-
-    // Room created
-    socket.on('roomCreated', (data) => {
-      currentRoomCode = data.code;
-      $('hostRoomCode').textContent = data.code;
-      updatePlayersList(data.participants || []);
-      showScreen('screen-host-lobby');
-      toast(`Room ${data.code} created!`);
-    });
-
-    // Participant joined
-    socket.on('participantsChanged', (data) => {
-      updatePlayersList(data.participants || []);
-      $('playerCount').textContent = data.total || 0;
-      if (isHost && data.name) {
-        toast(`👋 ${data.name} joined!`);
-        sounds.click();
-      }
-    });
-
-    // Question start
-    socket.on('questionStart', (payload) => {
-      renderActiveQuestion(payload);
-    });
-
-    // Authoritative Timer tick
-    socket.on('timerTick', (data) => {
-      const timerVal = $('timerVal');
-      if (timerVal) {
-        timerVal.textContent = data.remaining;
-        const timerBox = $('timerBox');
-        const timerFill = $('timerBarFill');
-        const pct = Math.max(0, Math.min(100, (data.remaining / (data.total || 20)) * 100));
-        if (timerFill) timerFill.style.width = `${pct}%`;
-
-        if (data.remaining <= 5) {
-          timerBox.classList.add('urgent');
-          if (timerFill) timerFill.classList.add('urgent');
-          sounds.tick();
-        } else {
-          timerBox.classList.remove('urgent');
-          if (timerFill) timerFill.classList.remove('urgent');
-        }
-      }
-    });
-
-    // Live answers count during question (host view)
-    socket.on('answerReceived', (data) => {
-      $('answeredCount').textContent = data.totalAnswered;
-      $('totalExpected').textContent = data.totalParticipants;
-    });
-
-    // Question ended / reveal
-    socket.on('questionEnded', (data) => {
-      renderRevealResults(data);
-    });
-
-    // Game completed / final podium
-    socket.on('gameEnded', (data) => {
-      renderFinalPodium(data);
-    });
-
-    // Room reset
-    socket.on('roomReset', (data) => {
-      toast('Room has been reset by host.');
-      if (isHost) {
-        showScreen('screen-host-lobby');
-      } else {
-        showScreen('screen-participant-lobby');
-      }
-    });
-
-    // Host disconnected
-    socket.on('hostDisconnected', (data) => {
-      toast('⚠️ Host has disconnected from the room.');
-    });
-
-  } catch (err) {
-    console.error('Socket initialization error:', err);
+  socket.on('disconnect', () => {
     $('statusDot').classList.add('offline');
-    $('statusText').textContent = 'Offline';
-  }
+    $('statusText').textContent = 'Disconnected';
+    toast('Connection lost. Reconnecting...');
+  });
+
+  // Room created
+  socket.on('roomCreated', (data) => {
+    currentRoomCode = data.code;
+    $('hostRoomCode').textContent = data.code;
+    updatePlayersList(data.participants || []);
+    showScreen('screen-host-lobby');
+    toast(`Room ${data.code} created!`);
+  });
+
+  // Participant joined
+  socket.on('participantsChanged', (data) => {
+    updatePlayersList(data.participants || []);
+    $('playerCount').textContent = data.total || 0;
+    if (isHost && data.name) {
+      toast(`👋 ${data.name} joined!`);
+      sounds.click();
+    }
+  });
+
+  // Question start
+  socket.on('questionStart', (payload) => {
+    renderActiveQuestion(payload);
+  });
+
+  // Authoritative Timer tick
+  socket.on('timerTick', (data) => {
+    const timerVal = $('timerVal');
+    if (timerVal) {
+      timerVal.textContent = data.remaining;
+      const timerBox = $('timerBox');
+      const timerFill = $('timerBarFill');
+      const pct = Math.max(0, Math.min(100, (data.remaining / (data.total || 20)) * 100));
+      if (timerFill) timerFill.style.width = `${pct}%`;
+
+      if (data.remaining <= 5) {
+        timerBox.classList.add('urgent');
+        if (timerFill) timerFill.classList.add('urgent');
+        sounds.tick();
+      } else {
+        timerBox.classList.remove('urgent');
+        if (timerFill) timerFill.classList.remove('urgent');
+      }
+    }
+  });
+
+  // Live answers count during question (host view)
+  socket.on('answerReceived', (data) => {
+    $('answeredCount').textContent = data.totalAnswered;
+    $('totalExpected').textContent = data.totalParticipants;
+  });
+
+  // Question ended / reveal
+  socket.on('questionEnded', (data) => {
+    renderRevealResults(data);
+  });
+
+  // Game completed / final podium
+  socket.on('gameEnded', (data) => {
+    renderFinalPodium(data);
+  });
+
+  // Room reset
+  socket.on('roomReset', (data) => {
+    toast('Room has been reset by host.');
+    if (isHost) {
+      showScreen('screen-host-lobby');
+    } else {
+      showScreen('screen-participant-lobby');
+    }
+  });
+
+  // Host disconnected
+  socket.on('hostDisconnected', (data) => {
+    toast('⚠️ Host has disconnected from the room.');
+  });
 }
 
 /* ==========================================================================
    Navigation Handlers
    ========================================================================== */
+
+function generateRoomCodeClient() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
+}
 
 function goHome() {
   showScreen('screen-home');
@@ -1594,13 +1833,14 @@ function goHost() {
   isHost = true;
   const hostName = prompt('Enter Host / Quizmaster name:', 'Quizmaster');
   if (hostName === null) return;
-  socket.emit('createRoom', { hostName: hostName.trim() || 'Host' }, (resp) => {
-    if (resp && resp.ok) {
-      loadPresetsList();
-    } else {
-      toast('Failed to create room.');
-    }
-  });
+  const code = generateRoomCodeClient();
+  currentRoomCode = code;
+  $('hostRoomCode').textContent = code;
+
+  socket.connect(code, hostName.trim() || 'Host', 'host');
+  loadPresetsList();
+  showScreen('screen-host-lobby');
+  toast(`Room ${code} created!`);
 }
 
 function goJoin() {
@@ -1626,37 +1866,25 @@ function doJoinRoom() {
     return;
   }
 
-  $('btnDoJoin').disabled = true;
+  currentRoomCode = code;
+  myNickname = name;
 
-  socket.emit('joinRoom', { code, name }, (resp) => {
-    $('btnDoJoin').disabled = false;
-    if (resp.error) {
-      toast(resp.error);
-      return;
-    }
+  $('partName').textContent = myNickname;
+  $('partRoomCode').textContent = code;
+  const randomEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+  $('partAvatar').textContent = randomEmoji;
 
-    currentRoomCode = code;
-    myParticipantId = resp.participantId;
-    myNickname = resp.name;
-
-    $('partName').textContent = myNickname;
-    $('partRoomCode').textContent = code;
-    const randomEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
-    $('partAvatar').textContent = randomEmoji;
-
-    showScreen('screen-participant-lobby');
-    toast(`Joined room ${code}!`);
-    sounds.click();
-  });
+  socket.connect(code, name, 'player');
+  showScreen('screen-participant-lobby');
+  toast(`Joining room ${code}...`);
+  sounds.click();
 }
 
 function leaveGame() {
-  if (socket) socket.disconnect();
-  socket = null;
+  socket.disconnect();
   currentRoomCode = null;
   myParticipantId = null;
   goHome();
-  initSocket();
 }
 
 /* ==========================================================================
@@ -1747,12 +1975,9 @@ function selectPreset(presetId) {
   currentQuiz = JSON.parse(JSON.stringify(preset.questions));
   $('currentQuizLoadedMsg').textContent = `✓ ${currentQuiz.length} Questions Ready (${preset.title})`;
 
-  // Send questions to server
-  socket.emit('setQuestions', { code: currentRoomCode, questions: currentQuiz }, (resp) => {
-    if (resp && resp.ok) {
-      toast(`Loaded ${currentQuiz.length} questions!`);
-    }
-  });
+  // Send questions to server / Durable Object
+  socket.emit('setQuestions', { code: currentRoomCode, questions: currentQuiz, title: preset.title });
+  toast(`Loaded ${currentQuiz.length} questions!`);
 }
 
 function doStartGame() {
@@ -1760,25 +1985,15 @@ function doStartGame() {
     toast('Please select or create quiz questions first!');
     return;
   }
-  socket.emit('startGame', { code: currentRoomCode }, (resp) => {
-    if (resp && resp.error) {
-      toast(resp.error);
-    }
-  });
+  socket.emit('startGame', { code: currentRoomCode });
 }
 
 function doNextQuestion() {
-  socket.emit('nextQuestion', { code: currentRoomCode }, (resp) => {
-    if (resp && resp.error) {
-      toast(resp.error);
-    }
-  });
+  socket.emit('nextQuestion', { code: currentRoomCode });
 }
 
 function skipQuestion() {
-  socket.emit('skipQuestion', { code: currentRoomCode }, (resp) => {
-    if (resp && resp.error) toast(resp.error);
-  });
+  socket.emit('skipQuestion', { code: currentRoomCode });
 }
 
 /* ==========================================================================
@@ -1880,8 +2095,6 @@ function submitOptionAnswer(selectedOption, cardEl) {
   socket.emit('answerQuestion', {
     code: currentRoomCode,
     answer: selectedOption
-  }, (resp) => {
-    if (resp && resp.error) toast(resp.error);
   });
 }
 
@@ -1902,8 +2115,6 @@ function submitOpenAnswer() {
   socket.emit('answerQuestion', {
     code: currentRoomCode,
     answer: val
-  }, (resp) => {
-    if (resp && resp.error) toast(resp.error);
   });
 }
 
@@ -2052,9 +2263,7 @@ function renderFinalPodium(data) {
 }
 
 function doResetRoom() {
-  socket.emit('resetRoom', { code: currentRoomCode }, (resp) => {
-    if (resp && resp.error) toast(resp.error);
-  });
+  socket.emit('resetRoom', { code: currentRoomCode });
 }
 
 /* ==========================================================================
@@ -2063,6 +2272,10 @@ function doResetRoom() {
 
 function openQuizBuilder() {
   $('quizBuilderModal').classList.add('active');
+  if (!editingPreparedQuizId && (!currentQuiz || currentQuiz.length === 0)) {
+    $('builderQuizTitle').value = '';
+    $('builderQuizDesc').value = '';
+  }
   renderBuilderQuestions();
 }
 
@@ -2176,7 +2389,7 @@ function removeBuilderQuestion(idx) {
   renderBuilderQuestions();
 }
 
-function saveCustomQuiz() {
+async function saveCustomQuiz(saveToCloud = false) {
   const updated = [];
   const container = $('builderQuestionsList');
   const cards = container.children;
@@ -2217,13 +2430,66 @@ function saveCustomQuiz() {
     });
   }
 
-  currentQuiz = updated;
-  $('currentQuizLoadedMsg').textContent = `✓ ${currentQuiz.length} Custom Questions Ready`;
+  const title = ($('builderQuizTitle') && $('builderQuizTitle').value.trim()) || 'Custom Quiz';
+  const description = ($('builderQuizDesc') && $('builderQuizDesc').value.trim()) || '';
 
-  socket.emit('setQuestions', { code: currentRoomCode, questions: currentQuiz }, (resp) => {
-    closeQuizBuilder();
-    toast(`Saved ${currentQuiz.length} custom questions!`);
-  });
+  // Cloud saving if requested
+  if (saveToCloud) {
+    if (!currentUser || !authToken) {
+      toast('Please sign in to save this quiz to your permanent cloud library!');
+      openAuthModal('login');
+      return;
+    }
+
+    try {
+      if (editingPreparedQuizId) {
+        // Update existing
+        const res = await fetch(`/api/quizzes/${editingPreparedQuizId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          },
+          body: JSON.stringify({ title, description, questions: updated })
+        });
+        const resData = await res.json();
+        if (resData.ok) {
+          toast(`Updated "${title}" in your library!`);
+        }
+      } else {
+        // Create new
+        const res = await fetch('/api/quizzes', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          },
+          body: JSON.stringify({ title, description, questions: updated })
+        });
+        const resData = await res.json();
+        if (resData.ok) {
+          editingPreparedQuizId = resData.quizId;
+          toast(`Saved "${title}" to your library!`);
+        }
+      }
+      await loadUserQuizzes();
+    } catch (err) {
+      console.error('Error saving quiz to cloud:', err);
+      toast('Error saving quiz to cloud library.');
+    }
+  }
+
+  currentQuiz = updated;
+  $('currentQuizLoadedMsg').textContent = `✓ ${currentQuiz.length} Questions Ready (${title})`;
+
+  if (currentRoomCode) {
+    socket.emit('setQuestions', { code: currentRoomCode, questions: currentQuiz, title });
+  }
+
+  closeQuizBuilder();
+  if (!saveToCloud) {
+    toast(`Applied ${currentQuiz.length} custom questions to live room!`);
+  }
 }
 
 function exportQuizJSON() {
@@ -2265,10 +2531,447 @@ function importQuizJSON() {
 }
 
 /* ==========================================================================
+   User Authentication & Cloud Quiz Library
+   ========================================================================== */
+
+let currentAuthTab = 'login';
+
+function openAuthModal(tab = 'login') {
+  currentAuthTab = tab;
+  switchAuthTab(tab);
+  const alertEl = $('authAlert');
+  if (alertEl) {
+    alertEl.style.display = 'none';
+    alertEl.textContent = '';
+  }
+  $('authModal').classList.add('active');
+  setTimeout(() => {
+    const input = $('authUsername');
+    if (input) input.focus();
+  }, 100);
+}
+
+function closeAuthModal() {
+  $('authModal').classList.remove('active');
+}
+
+function switchAuthTab(tab) {
+  currentAuthTab = tab;
+  const isLogin = tab === 'login';
+  $('authModalTitle').textContent = isLogin ? 'Sign In to QuizLoom' : 'Create QuizLoom Account';
+  $('btnAuthSubmit').textContent = isLogin ? 'Sign In' : 'Create Account';
+  
+  const loginTabBtn = $('authTabLogin');
+  const regTabBtn = $('authTabRegister');
+  if (loginTabBtn && regTabBtn) {
+    if (isLogin) {
+      loginTabBtn.style.background = 'var(--primary)';
+      loginTabBtn.style.color = '#fff';
+      regTabBtn.style.background = 'rgba(255,255,255,0.05)';
+      regTabBtn.style.color = 'var(--text)';
+    } else {
+      regTabBtn.style.background = 'var(--primary)';
+      regTabBtn.style.color = '#fff';
+      loginTabBtn.style.background = 'rgba(255,255,255,0.05)';
+      loginTabBtn.style.color = 'var(--text)';
+    }
+  }
+  const alertEl = $('authAlert');
+  if (alertEl) alertEl.style.display = 'none';
+}
+
+async function handleAuthSubmit(e) {
+  e.preventDefault();
+  const username = $('authUsername').value.trim();
+  const password = $('authPassword').value;
+  const alertEl = $('authAlert');
+
+  if (!username || !password) return;
+
+  const endpoint = currentAuthTab === 'register' ? '/api/auth/register' : '/api/auth/login';
+
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.ok) {
+      alertEl.style.display = 'block';
+      alertEl.style.background = 'rgba(239, 68, 68, 0.15)';
+      alertEl.style.border = '1px solid var(--red)';
+      alertEl.style.color = '#fca5a5';
+      alertEl.textContent = data.error || 'Authentication failed. Please check your credentials.';
+      return;
+    }
+
+    // Success!
+    authToken = data.token;
+    currentUser = data.user;
+    localStorage.setItem('ql_auth_token', authToken);
+
+    $('authPassword').value = '';
+    closeAuthModal();
+    updateAuthNavUI();
+    await loadUserQuizzes();
+    renderLobbyQuizzes();
+    toast(`Welcome, ${currentUser.username}!`);
+  } catch (err) {
+    alertEl.style.display = 'block';
+    alertEl.style.background = 'rgba(239, 68, 68, 0.15)';
+    alertEl.style.border = '1px solid var(--red)';
+    alertEl.style.color = '#fca5a5';
+    alertEl.textContent = 'Network error while attempting to sign in.';
+  }
+}
+
+async function checkAuthSession() {
+  if (!authToken) {
+    updateAuthNavUI();
+    return;
+  }
+  try {
+    const res = await fetch('/api/auth/me', {
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+    const data = await res.json();
+    if (res.ok && data.ok && data.user) {
+      currentUser = data.user;
+      updateAuthNavUI();
+      await loadUserQuizzes();
+    } else {
+      // Token invalid or expired
+      authToken = null;
+      currentUser = null;
+      localStorage.removeItem('ql_auth_token');
+      updateAuthNavUI();
+    }
+  } catch (err) {
+    console.warn('Auth session check failed:', err);
+    updateAuthNavUI();
+  }
+}
+
+async function doLogout() {
+  if (authToken) {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+    } catch (e) {}
+  }
+  authToken = null;
+  currentUser = null;
+  userQuizzesCache = [];
+  localStorage.removeItem('ql_auth_token');
+  updateAuthNavUI();
+  renderLobbyQuizzes();
+  toast('Signed out successfully.');
+}
+
+function updateAuthNavUI() {
+  const loginBtn = $('navLoginBtn');
+  const userBadge = $('navUserBadge');
+  const userName = $('navUserName');
+  const myQuizzesBtn = $('navMyQuizzesBtn');
+  const logoutBtn = $('navLogoutBtn');
+
+  if (currentUser) {
+    if (loginBtn) loginBtn.style.display = 'none';
+    if (userBadge) {
+      userBadge.style.display = 'flex';
+      if (userName) userName.textContent = currentUser.username;
+    }
+    if (myQuizzesBtn) myQuizzesBtn.style.display = 'inline-flex';
+    if (logoutBtn) logoutBtn.style.display = 'inline-flex';
+  } else {
+    if (loginBtn) loginBtn.style.display = 'inline-flex';
+    if (userBadge) userBadge.style.display = 'none';
+    if (myQuizzesBtn) myQuizzesBtn.style.display = 'none';
+    if (logoutBtn) logoutBtn.style.display = 'none';
+  }
+}
+
+/* ==========================================================================
+   "My Quizzes" Prepared Question Packs Management
+   ========================================================================== */
+
+async function loadUserQuizzes() {
+  if (!authToken) {
+    userQuizzesCache = [];
+    renderMyQuizzesUI();
+    renderLobbyQuizzes();
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/quizzes', {
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+    const data = await res.json();
+    if (data && data.ok && Array.isArray(data.quizzes)) {
+      userQuizzesCache = data.quizzes;
+      const countEl = $('myQuizzesCount');
+      if (countEl) countEl.textContent = `${userQuizzesCache.length} Quizzes`;
+      const badgeEl = $('lobbyMyQuizBadge');
+      if (badgeEl) badgeEl.textContent = `(${userQuizzesCache.length})`;
+      renderMyQuizzesUI();
+      renderLobbyQuizzes();
+    }
+  } catch (err) {
+    console.error('Failed to load user quizzes:', err);
+  }
+}
+
+function openMyQuizzesModal() {
+  if (!currentUser) {
+    openAuthModal('login');
+    toast('Please sign in to access your prepared question bank.');
+    return;
+  }
+  $('myQuizzesModal').classList.add('active');
+  loadUserQuizzes();
+}
+
+function closeMyQuizzesModal() {
+  $('myQuizzesModal').classList.remove('active');
+}
+
+function renderMyQuizzesUI() {
+  const list = $('myQuizzesList');
+  if (!list) return;
+  list.innerHTML = '';
+
+  if (userQuizzesCache.length === 0) {
+    list.innerHTML = `
+      <div style="text-align:center;padding:36px 16px;background:rgba(255,255,255,0.02);border:1px dashed var(--border);border-radius:var(--radius-md)">
+        <div style="font-size:2rem;margin-bottom:8px">📝</div>
+        <div style="font-weight:700;margin-bottom:4px">No Prepared Quizzes Yet</div>
+        <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:16px">Write your questions ahead of time and load them into games anytime.</div>
+        <button class="btn btn-primary btn-sm" onclick="startNewPreparedQuiz()">+ Prepare Your First Quiz</button>
+      </div>
+    `;
+    return;
+  }
+
+  userQuizzesCache.forEach(q => {
+    const card = document.createElement('div');
+    card.className = 'quiz-library-card';
+    const count = q.question_count || 0;
+    const dateStr = q.created_at ? new Date(q.created_at).toLocaleDateString() : '';
+
+    card.innerHTML = `
+      <div class="quiz-card-info">
+        <div class="quiz-card-title">${esc(q.title)}</div>
+        <div class="quiz-card-meta">
+          <span style="color:var(--primary);font-weight:700">${count} questions</span>
+          ${q.description ? `<span>• ${esc(q.description)}</span>` : ''}
+          ${dateStr ? `<span>• ${dateStr}</span>` : ''}
+        </div>
+      </div>
+      <div class="quiz-card-actions">
+        <button class="btn btn-primary btn-sm" onclick="loadAndHostPreparedQuiz('${q.id}')" title="Load into live game">🚀 Host</button>
+        <button class="btn btn-secondary btn-sm" onclick="editPreparedQuiz('${q.id}')" title="Edit questions">✏️ Edit</button>
+        <button class="btn btn-secondary btn-sm" style="color:var(--red)" onclick="deletePreparedQuiz('${q.id}')" title="Delete quiz">🗑️</button>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+function startNewPreparedQuiz() {
+  editingPreparedQuizId = null;
+  closeMyQuizzesModal();
+  
+  $('quizBuilderHeading').textContent = 'Prepare New Quiz';
+  $('builderQuizTitle').value = '';
+  $('builderQuizDesc').value = '';
+  currentQuiz = [
+    {
+      id: 1,
+      text: '',
+      type: 'quiz',
+      options: ['Option A', 'Option B', 'Option C', 'Option D'],
+      correctAnswer: 'Option A',
+      time: 20,
+      explanation: ''
+    }
+  ];
+  openQuizBuilder();
+}
+
+async function editPreparedQuiz(quizId) {
+  try {
+    const res = await fetch(`/api/quizzes/${quizId}`);
+    const data = await res.json();
+    if (!data.ok || !data.quiz) {
+      toast('Failed to load quiz for editing');
+      return;
+    }
+
+    editingPreparedQuizId = quizId;
+    closeMyQuizzesModal();
+
+    $('quizBuilderHeading').textContent = 'Edit Prepared Quiz';
+    $('builderQuizTitle').value = data.quiz.title || '';
+    $('builderQuizDesc').value = data.quiz.description || '';
+    currentQuiz = data.quiz.questions || [];
+    if (currentQuiz.length === 0) {
+      currentQuiz = [{ id: 1, text: '', type: 'quiz', options: ['Option A', 'Option B', 'Option C', 'Option D'], correctAnswer: 'Option A', time: 20, explanation: '' }];
+    }
+    openQuizBuilder();
+  } catch (err) {
+    toast('Error fetching quiz details');
+  }
+}
+
+async function deletePreparedQuiz(quizId) {
+  if (!confirm('Are you sure you want to delete this prepared quiz?')) return;
+  try {
+    const res = await fetch(`/api/quizzes/${quizId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
+    const data = await res.json();
+    if (data.ok) {
+      toast('Quiz deleted from your library.');
+      await loadUserQuizzes();
+    } else {
+      toast(data.error || 'Failed to delete quiz.');
+    }
+  } catch (err) {
+    toast('Error deleting quiz');
+  }
+}
+
+async function loadAndHostPreparedQuiz(quizId) {
+  try {
+    const res = await fetch(`/api/quizzes/${quizId}`);
+    const data = await res.json();
+    if (!data.ok || !data.quiz) {
+      toast('Failed to load quiz');
+      return;
+    }
+
+    closeMyQuizzesModal();
+    const quiz = data.quiz;
+    currentQuiz = quiz.questions || [];
+
+    // If currently on home or join screen, create a room first
+    const activeScreen = document.querySelector('.screen.active');
+    if (!activeScreen || activeScreen.id !== 'screen-host-lobby') {
+      goHost();
+    }
+
+    // Update loaded message
+    $('currentQuizLoadedMsg').textContent = `✓ ${currentQuiz.length} Questions Ready (${quiz.title})`;
+    
+    // Select in lobby if visible
+    switchLobbyQuizTab('myquizzes');
+    document.querySelectorAll('.preset-item').forEach(el => el.classList.remove('selected'));
+    const itemEl = $(`myquiz-${quizId}`);
+    if (itemEl) itemEl.classList.add('selected');
+
+    if (currentRoomCode) {
+      socket.emit('setQuestions', { code: currentRoomCode, questions: currentQuiz, title: quiz.title });
+    }
+    toast(`Loaded "${quiz.title}" with ${currentQuiz.length} questions!`);
+  } catch (err) {
+    toast('Error loading quiz questions');
+  }
+}
+
+/* ==========================================================================
+   Lobby Quiz Tab Switching: Presets vs My Prepared Quizzes
+   ========================================================================== */
+
+function switchLobbyQuizTab(tab) {
+  currentLobbyQuizTab = tab;
+  const presetsBtn = $('tabLobbyPresets');
+  const myQuizzesBtn = $('tabLobbyMyQuizzes');
+  const presetList = $('presetList');
+  const myQuizzesList = $('lobbyMyQuizzesList');
+
+  if (tab === 'presets') {
+    if (presetsBtn) { presetsBtn.style.background = 'var(--primary)'; presetsBtn.style.color = '#fff'; }
+    if (myQuizzesBtn) { myQuizzesBtn.style.background = 'rgba(255,255,255,0.05)'; myQuizzesBtn.style.color = 'var(--text)'; }
+    if (presetList) presetList.style.display = 'grid';
+    if (myQuizzesList) myQuizzesList.style.display = 'none';
+  } else {
+    if (myQuizzesBtn) { myQuizzesBtn.style.background = 'var(--primary)'; myQuizzesBtn.style.color = '#fff'; }
+    if (presetsBtn) { presetsBtn.style.background = 'rgba(255,255,255,0.05)'; presetsBtn.style.color = 'var(--text)'; }
+    if (presetList) presetList.style.display = 'none';
+    if (myQuizzesList) myQuizzesList.style.display = 'grid';
+    renderLobbyQuizzes();
+  }
+}
+
+function renderLobbyQuizzes() {
+  const container = $('lobbyMyQuizzesList');
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (!currentUser) {
+    container.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align:center; padding: 24px 16px; background: rgba(255,255,255,0.02); border: 1px dashed var(--border); border-radius: var(--radius-md)">
+        <div style="margin-bottom:8px;font-size:0.9rem;color:var(--text-muted)">Sign in to access your saved questions:</div>
+        <button class="btn btn-secondary btn-sm" onclick="openAuthModal('login')">🔐 Sign In</button>
+      </div>
+    `;
+    return;
+  }
+
+  if (userQuizzesCache.length === 0) {
+    container.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align:center; padding: 24px 16px; background: rgba(255,255,255,0.02); border: 1px dashed var(--border); border-radius: var(--radius-md)">
+        <div style="margin-bottom:8px;font-size:0.9rem;color:var(--text-muted)">You don't have any prepared quizzes yet.</div>
+        <button class="btn btn-primary btn-sm" onclick="startNewPreparedQuiz()">+ Prepare a Quiz</button>
+      </div>
+    `;
+    return;
+  }
+
+  userQuizzesCache.forEach(q => {
+    const item = document.createElement('div');
+    item.className = 'preset-item';
+    item.id = `myquiz-${q.id}`;
+    item.innerHTML = `
+      <div class="preset-name">${esc(q.title)}</div>
+      <div class="preset-meta">${q.question_count || 0} questions • Prepared Pack</div>
+    `;
+    item.onclick = () => selectPreparedQuizInLobby(q.id);
+    container.appendChild(item);
+  });
+}
+
+async function selectPreparedQuizInLobby(quizId) {
+  try {
+    const res = await fetch(`/api/quizzes/${quizId}`);
+    const data = await res.json();
+    if (!data.ok || !data.quiz) return;
+
+    document.querySelectorAll('.preset-item').forEach(el => el.classList.remove('selected'));
+    const selectedEl = $(`myquiz-${quizId}`);
+    if (selectedEl) selectedEl.classList.add('selected');
+
+    currentQuiz = data.quiz.questions;
+    $('currentQuizLoadedMsg').textContent = `✓ ${currentQuiz.length} Questions Ready (${data.quiz.title})`;
+    socket.emit('setQuestions', { code: currentRoomCode, questions: currentQuiz, title: data.quiz.title });
+    toast(`Loaded ${currentQuiz.length} questions from "${data.quiz.title}"!`);
+  } catch (err) {
+    toast('Error loading prepared quiz');
+  }
+}
+
+/* ==========================================================================
    Page Init & URL Parameters
    ========================================================================== */
 window.addEventListener('DOMContentLoaded', () => {
   initSocket();
+  checkAuthSession();
 
   // Check URL query parameters (e.g., ?code=ABCDEF)
   const urlParams = new URLSearchParams(window.location.search);
