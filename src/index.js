@@ -105,7 +105,6 @@ export default {
           return jsonResponse({ ok: false, error: 'Password must be at least 4 characters' }, 400);
         }
 
-        // Check if username already exists
         const existing = await env.DB.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
         if (existing) {
           return jsonResponse({ ok: false, error: 'Username is already taken' }, 400);
@@ -211,7 +210,6 @@ export default {
         let params = [];
 
         if (user) {
-          // If logged in, fetch user's prepared quizzes with question count
           query = `
             SELECT q.id, q.title, q.description, q.user_id, q.created_at,
                    COUNT(ques.id) AS question_count
@@ -223,7 +221,6 @@ export default {
           `;
           params = [user.id];
         } else {
-          // If guest, fetch recent public quizzes
           query = `
             SELECT q.id, q.title, q.description, q.user_id, q.created_at,
                    COUNT(ques.id) AS question_count
@@ -248,7 +245,6 @@ export default {
     if (quizMatch) {
       const quizId = quizMatch[1];
 
-      // GET Single Quiz
       if (request.method === 'GET') {
         if (!env.DB) {
           return jsonResponse({ ok: false, error: 'Database DB is not configured' }, 500);
@@ -300,7 +296,6 @@ export default {
         }
       }
 
-      // PUT Update Quiz
       if (request.method === 'PUT') {
         if (!env.DB) {
           return jsonResponse({ ok: false, error: 'Database DB is not configured' }, 500);
@@ -324,12 +319,10 @@ export default {
           const description = (body.description || '').trim();
           const questions = Array.isArray(body.questions) ? body.questions : [];
 
-          // Update quiz metadata
           await env.DB.prepare(
             'UPDATE quizzes SET title = ?, description = ? WHERE id = ?'
           ).bind(title, description, quizId).run();
 
-          // Replace questions
           await env.DB.prepare('DELETE FROM questions WHERE quiz_id = ?').bind(quizId).run();
 
           const insertQStmt = env.DB.prepare(
@@ -360,7 +353,6 @@ export default {
         }
       }
 
-      // DELETE Quiz
       if (request.method === 'DELETE') {
         if (!env.DB) {
           return jsonResponse({ ok: false, error: 'Database DB is not configured' }, 500);
@@ -404,12 +396,10 @@ export default {
         const description = (body.description || '').trim();
         const questions = Array.isArray(body.questions) ? body.questions : [];
 
-        // Insert Quiz
         await env.DB.prepare(
           'INSERT INTO quizzes (id, user_id, title, description) VALUES (?, ?, ?, ?)'
         ).bind(quizId, userId, title, description).run();
 
-        // Insert Questions
         const insertQStmt = env.DB.prepare(
           `INSERT INTO questions (quiz_id, question_index, text, type, options, correct_answer, time_limit, explanation)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`

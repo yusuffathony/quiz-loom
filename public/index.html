@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>QuizLoom - Live Multiplayer Quiz Platform</title>
+<!-- Favicon: Modern Gaming Nexus Vector Icon -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%236366f1'/%3E%3Cstop offset='100%25' stop-color='%2338bdf8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='%230f172a'/%3E%3Ccircle cx='32' cy='32' r='20' fill='none' stroke='url(%23g)' stroke-width='4'/%3E%3Ccircle cx='32' cy='32' r='12' fill='none' stroke='%2338bdf8' stroke-width='3' stroke-dasharray='4 3'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%236366f1'/%3E%3Cpath d='M32 4v8M32 52v8M4 32h8M52 32h8' stroke='url(%23g)' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<!-- FontAwesome 6 -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 <style>
 :root {
   --bg: #0b0e17;
@@ -32,12 +36,15 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+:focus-visible {
+  outline: 2px solid #818cf8;
+  outline-offset: 2px;
+}
+
 body {
   font-family: var(--font);
   background: var(--bg);
-  background-image: 
-    radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
-    radial-gradient(circle at 85% 85%, rgba(236, 72, 153, 0.1) 0%, transparent 40%);
+  background-image: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.08) 0%, transparent 60%);
   color: var(--text);
   min-height: 100vh;
   display: flex;
@@ -117,19 +124,26 @@ header {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border);
   color: var(--text);
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: var(--radius-sm);
   display: grid;
   place-items: center;
   cursor: pointer;
   transition: all 0.2s;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
 }
 
 .icon-btn:hover {
   background: var(--surface-hover);
   border-color: var(--border-glow);
+}
+
+.icon-btn:focus-visible {
+  outline: 2px solid #818cf8;
+  outline-offset: 2px;
 }
 
 /* App Main Container */
@@ -167,7 +181,8 @@ main {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 14px 24px;
+  padding: 12px 24px;
+  min-height: 44px;
   border-radius: var(--radius-md);
   font-size: 1rem;
   font-weight: 700;
@@ -179,6 +194,11 @@ main {
 
 .btn:active { transform: scale(0.98); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+
+.btn:focus-visible {
+  outline: 2px solid #818cf8;
+  outline-offset: 2px;
+}
 
 .btn-primary {
   background: linear-gradient(135deg, var(--primary), var(--primary-hover));
@@ -212,8 +232,9 @@ main {
 }
 
 .btn-sm {
-  padding: 8px 16px;
+  padding: 10px 18px;
   font-size: 0.85rem;
+  min-height: 44px;
   border-radius: var(--radius-sm);
 }
 
@@ -244,6 +265,11 @@ main {
   width: 100%;
 }
 
+.input-field::placeholder {
+  color: #94a3b8;
+  opacity: 1;
+}
+
 .input-field:focus {
   outline: none;
   border-color: var(--primary);
@@ -253,8 +279,8 @@ main {
 /* Home Screen */
 .hero {
   text-align: center;
-  margin: 40px auto 48px;
-  max-width: 650px;
+  margin: 48px auto 52px;
+  max-width: 680px;
 }
 
 .hero-badge {
@@ -1043,25 +1069,25 @@ main {
 <!-- Top Navbar -->
 <header>
   <a class="brand" onclick="goHome()">
-    <span class="brand-icon">🎯</span>
+    <i class="fa-solid fa-bullseye brand-icon" style="color:var(--primary);margin-right:6px"></i>
     <span class="brand-name">QuizLoom</span>
   </a>
   <div class="nav-actions">
     <div id="navAuthContainer" style="display:flex;align-items:center;gap:10px">
       <!-- Unauthenticated State -->
-      <button class="btn btn-secondary btn-sm" id="navLoginBtn" onclick="openAuthModal('login')">🔐 Sign In</button>
+      <button class="btn btn-secondary btn-sm" id="navLoginBtn" onclick="openAuthModal('login')"><i class="fa-solid fa-arrow-right-to-bracket"></i> Sign In</button>
       
       <!-- Authenticated State (Hidden initially) -->
-      <div id="navUserBadge" class="user-badge" style="display:none">👤 <span id="navUserName">User</span></div>
-      <button class="btn btn-secondary btn-sm" id="navMyQuizzesBtn" onclick="openMyQuizzesModal()" style="display:none">📚 My Quizzes</button>
-      <button class="btn btn-secondary btn-sm" id="navLogoutBtn" onclick="doLogout()" style="display:none" title="Log Out">Logout</button>
+      <div id="navUserBadge" class="user-badge" style="display:none"><i class="fa-solid fa-user"></i> <span id="navUserName">User</span></div>
+      <button class="btn btn-secondary btn-sm" id="navMyQuizzesBtn" onclick="openMyQuizzesModal()" style="display:none"><i class="fa-solid fa-book-bookmark"></i> My Quizzes</button>
+      <button class="btn btn-secondary btn-sm" id="navLogoutBtn" onclick="doLogout()" style="display:none" title="Log Out"><i class="fa-solid fa-arrow-right-from-bracket"></i> Sign Out</button>
     </div>
 
     <div class="status-pill">
       <span class="status-dot" id="statusDot"></span>
       <span id="statusText">Connected</span>
     </div>
-    <button class="icon-btn" id="btnSound" onclick="toggleSound()" title="Toggle Sound">🔊</button>
+    <button class="icon-btn" id="btnSound" onclick="toggleSound()" title="Toggle Sound"><i class="fa-solid fa-volume-high" id="soundIcon"></i></button>
   </div>
 </header>
 
@@ -1069,28 +1095,27 @@ main {
   <!-- SCREEN: HOME -->
   <section id="screen-home" class="screen active">
     <div class="hero">
-      <div class="hero-badge">⚡ Real-time Multiplayer Quiz Platform</div>
-      <h1 class="hero-title">Interactive Quizzes <span>Made Effortless</span></h1>
-      <p class="hero-desc">Host engaging trivia, prepare customized questions in advance, and play live with real-time scoring and instant podiums.</p>
+      <h1 class="hero-title">Live Multiplayer Quizzes <span>for Everyone</span></h1>
+      <p class="hero-desc">Host engaging trivia sessions, prepare custom questions in advance, and play live with real-time scoring and instant leaderboards.</p>
     </div>
 
     <div class="cards-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr))">
       <div class="card-action">
-        <div class="card-icon">🌟</div>
+        <div class="card-icon"><i class="fa-solid fa-trophy" style="color:var(--gold)"></i></div>
         <h2 class="card-title">Host a Quiz</h2>
         <p class="card-desc">Create a live room code, load your prepared questions or trivia presets, and lead the game on your screen.</p>
         <button class="btn btn-primary" style="width:100%" onclick="goHost()">Create Room</button>
       </div>
 
       <div class="card-action">
-        <div class="card-icon">📝</div>
+        <div class="card-icon"><i class="fa-solid fa-pen-to-square" style="color:var(--primary)"></i></div>
         <h2 class="card-title">Prepare Questions</h2>
         <p class="card-desc">Log in, write custom questions, save them to your personal library, and load them into games anytime.</p>
         <button class="btn btn-secondary" style="width:100%" onclick="openMyQuizzesModal()">My Question Bank</button>
       </div>
 
       <div class="card-action">
-        <div class="card-icon">👥</div>
+        <div class="card-icon"><i class="fa-solid fa-users" style="color:#38bdf8"></i></div>
         <h2 class="card-title">Join a Game</h2>
         <p class="card-desc">Enter the 6-character room code from your host and compete with live scoring on your phone or desktop.</p>
         <button class="btn btn-secondary" style="width:100%" onclick="goJoin()">Enter Code</button>
@@ -1113,7 +1138,7 @@ main {
         <label class="input-label" for="inputName">YOUR NICKNAME</label>
         <div class="name-row">
           <input class="input-field" id="inputName" type="text" maxlength="20" placeholder="e.g. SwiftFalcon">
-          <button class="btn btn-secondary" onclick="generateRandomName()" title="Generate Random Name">🎲</button>
+          <button class="btn btn-secondary" onclick="generateRandomName()" title="Generate Random Name"><i class="fa-solid fa-dice"></i></button>
         </div>
       </div>
 
@@ -1132,12 +1157,12 @@ main {
           <div style="font-size:0.85rem;color:var(--text-muted);font-weight:600">ROOM CODE</div>
           <div class="room-code-tag" id="hostRoomCode">------</div>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="copyRoomCode()">📋 Copy Code</button>
-        <button class="btn btn-secondary btn-sm" onclick="copyJoinLink()">🔗 Copy Link</button>
+        <button class="btn btn-secondary btn-sm" onclick="copyRoomCode()"><i class="fa-solid fa-copy"></i> Copy Code</button>
+        <button class="btn btn-secondary btn-sm" onclick="copyJoinLink()"><i class="fa-solid fa-link"></i> Copy Link</button>
       </div>
 
       <div style="display:flex;gap:12px;align-items:center">
-        <button class="btn btn-gold" id="btnStartGame" onclick="doStartGame()">▶️ Start Quiz</button>
+        <button class="btn btn-gold" id="btnStartGame" onclick="doStartGame()"><i class="fa-solid fa-play"></i> Start Quiz</button>
       </div>
     </div>
 
@@ -1145,7 +1170,7 @@ main {
       <!-- Players Panel -->
       <div class="panel">
         <div class="panel-title">
-          <span>👥 Connected Players (<span id="playerCount">0</span>)</span>
+          <span><i class="fa-solid fa-users"></i> Connected Players (<span id="playerCount">0</span>)</span>
           <span style="font-size:0.85rem;color:var(--text-muted)">Waiting for host to start</span>
         </div>
         <div class="players-grid" id="playersGrid">
@@ -1156,17 +1181,17 @@ main {
       <!-- Quiz Selection Panel -->
       <div class="panel">
         <div class="panel-title">
-          <span>📚 Quiz Questions</span>
+          <span><i class="fa-solid fa-list-check"></i> Quiz Questions</span>
           <div style="display:flex;gap:8px">
-            <button class="btn btn-secondary btn-sm" onclick="openMyQuizzesModal()">📁 Library</button>
-            <button class="btn btn-secondary btn-sm" onclick="openQuizBuilder()">✏️ Builder</button>
+            <button class="btn btn-secondary btn-sm" onclick="openMyQuizzesModal()"><i class="fa-solid fa-folder"></i> Library</button>
+            <button class="btn btn-secondary btn-sm" onclick="openQuizBuilder()"><i class="fa-solid fa-pen"></i> Builder</button>
           </div>
         </div>
         
         <!-- Tab selector between Presets and My Prepared Quizzes -->
         <div style="display:flex;gap:8px;margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:10px">
-          <button class="btn btn-sm" id="tabLobbyPresets" onclick="switchLobbyQuizTab('presets')" style="padding:6px 14px;font-size:0.85rem;background:var(--primary);color:#fff">⭐ Presets</button>
-          <button class="btn btn-secondary btn-sm" id="tabLobbyMyQuizzes" onclick="switchLobbyQuizTab('myquizzes')" style="padding:6px 14px;font-size:0.85rem">📁 My Prepared Quizzes <span id="lobbyMyQuizBadge"></span></button>
+          <button class="btn btn-sm" id="tabLobbyPresets" onclick="switchLobbyQuizTab('presets')" style="padding:6px 14px;font-size:0.85rem;background:var(--primary);color:#fff"><i class="fa-solid fa-star"></i> Presets</button>
+          <button class="btn btn-secondary btn-sm" id="tabLobbyMyQuizzes" onclick="switchLobbyQuizTab('myquizzes')" style="padding:6px 14px;font-size:0.85rem"><i class="fa-solid fa-folder-open"></i> My Prepared Quizzes <span id="lobbyMyQuizBadge"></span></button>
         </div>
 
         <div class="preset-list" id="presetList"></div>
@@ -1267,7 +1292,7 @@ main {
 
       <!-- Host Advance Button -->
       <div id="hostRevealControls" style="display:none;justify-content:flex-end;gap:12px;margin-top:16px">
-        <button class="btn btn-gold" id="btnNextQuestion" onclick="doNextQuestion()">Next Question ➡️</button>
+        <button class="btn btn-gold" id="btnNextQuestion" onclick="doNextQuestion()">Next Question <i class="fa-solid fa-arrow-right"></i></button>
       </div>
     </div>
   </section>
@@ -1275,7 +1300,6 @@ main {
   <!-- SCREEN: FINAL PODIUM / GAME OVER -->
   <section id="screen-podium" class="screen">
     <div class="hero" style="margin:20px auto 10px">
-      <div class="hero-badge">🏁 Quiz Completed</div>
       <h1 class="hero-title">Winner <span>Podium</span>!</h1>
     </div>
 
@@ -1289,7 +1313,7 @@ main {
       </div>
       <!-- 1st Place -->
       <div class="podium-col" id="podium1">
-        <div style="font-size:2rem;margin-bottom:4px">👑</div>
+        <div style="font-size:2rem;margin-bottom:4px"><i class="fa-solid fa-crown" style="color:var(--gold)"></i></div>
         <div class="podium-player" id="podium1Name">-</div>
         <div class="podium-points" id="podium1Score">- pts</div>
         <div class="podium-pedestal pedestal-1">🥇</div>
@@ -1304,14 +1328,14 @@ main {
 
     <!-- Full Final Standings -->
     <div class="panel" style="max-width:700px;margin:0 auto 24px;width:100%">
-      <div class="panel-title">📜 Full Leaderboard</div>
+      <div class="panel-title"><span><i class="fa-solid fa-trophy" style="color:var(--gold);margin-right:8px"></i> Final Standings</span></div>
       <ul class="leaderboard-table" id="finalLeaderboard"></ul>
     </div>
 
     <!-- Controls -->
     <div style="display:flex;justify-content:center;gap:16px;margin-bottom:40px">
-      <button class="btn btn-gold" id="btnPlayAgain" style="display:none" onclick="doResetRoom()">🔁 Play Again</button>
-      <button class="btn btn-secondary" onclick="goHome()">🏠 Back to Home</button>
+      <button class="btn btn-gold" id="btnPlayAgain" style="display:none" onclick="doResetRoom()"><i class="fa-solid fa-rotate-right"></i> Play Again</button>
+      <button class="btn btn-secondary" onclick="goHome()"><i class="fa-solid fa-house"></i> Back to Home</button>
     </div>
   </section>
 </main>
@@ -1321,7 +1345,7 @@ main {
   <div class="modal-content" style="max-width:420px">
     <div class="modal-header">
       <h2 style="font-size:1.3rem;font-weight:800" id="authModalTitle">Sign In to QuizLoom</h2>
-      <button class="icon-btn" onclick="closeAuthModal()">✕</button>
+      <button class="icon-btn" onclick="closeAuthModal()"><i class="fa-solid fa-xmark"></i></button>
     </div>
     
     <div style="display:flex;gap:8px;border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:16px">
@@ -1353,17 +1377,17 @@ main {
   <div class="modal-content" style="max-width:760px">
     <div class="modal-header">
       <div style="display:flex;align-items:center;gap:12px">
-        <h2 style="font-size:1.4rem;font-weight:800">📚 My Prepared Quizzes</h2>
+        <h2 style="font-size:1.4rem;font-weight:800"><i class="fa-solid fa-folder-open"></i> My Prepared Quizzes</h2>
         <span class="status-pill" id="myQuizzesCount">0 Quizzes</span>
       </div>
-      <button class="icon-btn" onclick="closeMyQuizzesModal()">✕</button>
+      <button class="icon-btn" onclick="closeMyQuizzesModal()"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div style="font-size:0.9rem;color:var(--text-muted);margin-bottom:16px">
       Prepare and store quizzes ahead of time. Load questions into live games with 1 click or edit them anytime.
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
       <div style="font-size:0.85rem;color:var(--text-muted)">Your Saved Packs</div>
-      <button class="btn btn-primary btn-sm" onclick="startNewPreparedQuiz()">+ Prepare New Quiz</button>
+      <button class="btn btn-primary btn-sm" onclick="startNewPreparedQuiz()"><i class="fa-solid fa-plus"></i> Prepare New Quiz</button>
     </div>
     <div id="myQuizzesList" style="display:flex;flex-direction:column;gap:12px;max-height:450px;overflow-y:auto;padding-right:4px">
       <!-- Injected dynamically -->
@@ -1379,7 +1403,7 @@ main {
   <div class="modal-content">
     <div class="modal-header">
       <h2 style="font-size:1.4rem;font-weight:800" id="quizBuilderHeading">Custom Quiz Builder</h2>
-      <button class="icon-btn" onclick="closeQuizBuilder()">✕</button>
+      <button class="icon-btn" onclick="closeQuizBuilder()"><i class="fa-solid fa-xmark"></i></button>
     </div>
     
     <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:var(--radius-md);padding:16px;margin-bottom:20px">
@@ -1396,16 +1420,16 @@ main {
     <div id="builderQuestionsList" style="display:flex;flex-direction:column;gap:16px;margin-bottom:20px"></div>
 
     <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
-      <button class="btn btn-secondary btn-sm" onclick="addBuilderQuestion()">+ Add Question</button>
-      <button class="btn btn-secondary btn-sm" onclick="exportQuizJSON()">📥 Export JSON</button>
-      <button class="btn btn-secondary btn-sm" onclick="importQuizJSON()">📤 Import JSON</button>
+      <button class="btn btn-secondary btn-sm" onclick="addBuilderQuestion()"><i class="fa-solid fa-plus"></i> Add Question</button>
+      <button class="btn btn-secondary btn-sm" onclick="exportQuizJSON()"><i class="fa-solid fa-file-export"></i> Export JSON</button>
+      <button class="btn btn-secondary btn-sm" onclick="importQuizJSON()"><i class="fa-solid fa-file-import"></i> Import JSON</button>
     </div>
 
-    <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:16px;flex-wrap:wrap;gap:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:16px;flex-wrap:gap;gap:12px">
       <button class="btn btn-secondary" onclick="closeQuizBuilder()">Cancel</button>
       <div style="display:flex;gap:10px">
         <button class="btn btn-secondary" onclick="saveCustomQuiz(false)">Apply to Room Only</button>
-        <button class="btn btn-primary" id="btnSaveToLibrary" onclick="saveCustomQuiz(true)">💾 Save to My Quizzes & Apply</button>
+        <button class="btn btn-primary" id="btnSaveToLibrary" onclick="saveCustomQuiz(true)"><i class="fa-solid fa-floppy-disk"></i> Save to My Quizzes & Apply</button>
       </div>
     </div>
   </div>
@@ -1633,7 +1657,10 @@ const sounds = new SoundEngine();
 
 function toggleSound() {
   soundEnabled = !soundEnabled;
-  $('btnSound').textContent = soundEnabled ? '🔊' : '🔇';
+  const icon = $('soundIcon');
+  if (icon) {
+    icon.className = soundEnabled ? 'fa-solid fa-volume-high' : 'fa-solid fa-volume-xmark';
+  }
   toast(soundEnabled ? 'Sound enabled' : 'Sound muted');
 }
 
@@ -2298,7 +2325,7 @@ function renderBuilderQuestions() {
     wrap.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <b>Question ${idx + 1}</b>
-        <button class="btn btn-secondary btn-sm" style="color:var(--red)" onclick="removeBuilderQuestion(${idx})">✕ Delete</button>
+        <button class="btn btn-secondary btn-sm" style="color:var(--red)" onclick="removeBuilderQuestion(${idx})"><i class="fa-solid fa-trash-can"></i> Delete</button>
       </div>
       <div class="input-group">
         <label class="input-label">Question Text</label>
@@ -2707,6 +2734,16 @@ async function loadUserQuizzes() {
     return;
   }
 
+  const list = $('myQuizzesList');
+  if (list && userQuizzesCache.length === 0) {
+    list.innerHTML = `
+      <div style="text-align:center;padding:36px 16px;color:var(--text-muted)">
+        <i class="fa-solid fa-circle-notch fa-spin fa-2x" style="color:var(--primary);margin-bottom:12px"></i>
+        <div style="font-size:0.9rem">Loading your quizzes...</div>
+      </div>
+    `;
+  }
+
   try {
     const res = await fetch('/api/quizzes', {
       headers: { 'Authorization': `Bearer ${authToken}` }
@@ -2748,10 +2785,10 @@ function renderMyQuizzesUI() {
   if (userQuizzesCache.length === 0) {
     list.innerHTML = `
       <div style="text-align:center;padding:36px 16px;background:rgba(255,255,255,0.02);border:1px dashed var(--border);border-radius:var(--radius-md)">
-        <div style="font-size:2rem;margin-bottom:8px">📝</div>
+        <div style="font-size:2rem;margin-bottom:12px;color:var(--text-muted)"><i class="fa-solid fa-folder-open"></i></div>
         <div style="font-weight:700;margin-bottom:4px">No Prepared Quizzes Yet</div>
         <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:16px">Write your questions ahead of time and load them into games anytime.</div>
-        <button class="btn btn-primary btn-sm" onclick="startNewPreparedQuiz()">+ Prepare Your First Quiz</button>
+        <button class="btn btn-primary btn-sm" onclick="startNewPreparedQuiz()"><i class="fa-solid fa-plus"></i> Prepare Your First Quiz</button>
       </div>
     `;
     return;
@@ -2773,9 +2810,9 @@ function renderMyQuizzesUI() {
         </div>
       </div>
       <div class="quiz-card-actions">
-        <button class="btn btn-primary btn-sm" onclick="loadAndHostPreparedQuiz('${q.id}')" title="Load into live game">🚀 Host</button>
-        <button class="btn btn-secondary btn-sm" onclick="editPreparedQuiz('${q.id}')" title="Edit questions">✏️ Edit</button>
-        <button class="btn btn-secondary btn-sm" style="color:var(--red)" onclick="deletePreparedQuiz('${q.id}')" title="Delete quiz">🗑️</button>
+        <button class="btn btn-primary btn-sm" onclick="loadAndHostPreparedQuiz('${q.id}')" title="Load into live game"><i class="fa-solid fa-play"></i> Host</button>
+        <button class="btn btn-secondary btn-sm" onclick="editPreparedQuiz('${q.id}')" title="Edit questions"><i class="fa-solid fa-pen"></i> Edit</button>
+        <button class="btn btn-secondary btn-sm" style="color:var(--red)" onclick="deletePreparedQuiz('${q.id}')" title="Delete quiz"><i class="fa-solid fa-trash"></i></button>
       </div>
     `;
     list.appendChild(card);
@@ -2918,7 +2955,7 @@ function renderLobbyQuizzes() {
     container.innerHTML = `
       <div style="grid-column: 1 / -1; text-align:center; padding: 24px 16px; background: rgba(255,255,255,0.02); border: 1px dashed var(--border); border-radius: var(--radius-md)">
         <div style="margin-bottom:8px;font-size:0.9rem;color:var(--text-muted)">Sign in to access your saved questions:</div>
-        <button class="btn btn-secondary btn-sm" onclick="openAuthModal('login')">🔐 Sign In</button>
+        <button class="btn btn-secondary btn-sm" onclick="openAuthModal('login')"><i class="fa-solid fa-arrow-right-to-bracket"></i> Sign In</button>
       </div>
     `;
     return;
@@ -2928,7 +2965,7 @@ function renderLobbyQuizzes() {
     container.innerHTML = `
       <div style="grid-column: 1 / -1; text-align:center; padding: 24px 16px; background: rgba(255,255,255,0.02); border: 1px dashed var(--border); border-radius: var(--radius-md)">
         <div style="margin-bottom:8px;font-size:0.9rem;color:var(--text-muted)">You don't have any prepared quizzes yet.</div>
-        <button class="btn btn-primary btn-sm" onclick="startNewPreparedQuiz()">+ Prepare a Quiz</button>
+        <button class="btn btn-primary btn-sm" onclick="startNewPreparedQuiz()"><i class="fa-solid fa-plus"></i> Prepare a Quiz</button>
       </div>
     `;
     return;
@@ -2979,6 +3016,15 @@ window.addEventListener('DOMContentLoaded', () => {
   if (codeParam) {
     goJoin();
     $('inputCode').value = codeParam.toUpperCase().slice(0, 6);
+  }
+});
+
+// Close open modals when Escape key is pressed
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeAuthModal();
+    closeMyQuizzesModal();
+    closeQuizBuilder();
   }
 });
 </script>

@@ -71,7 +71,6 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Password must be at least 4 characters' });
     }
 
-    // Check duplicate
     for (const u of users.values()) {
       if (u.username.toLowerCase() === username.toLowerCase()) {
         return res.status(400).json({ ok: false, error: 'Username is already taken' });
