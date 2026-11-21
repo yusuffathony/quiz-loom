@@ -481,21 +481,22 @@ export class QuizRoom {
     });
 
     // Save game summary & results to Cloudflare D1 if available
-    if (this.env && this.env.DB) {
+    const db = this.env ? (this.env.DB || this.env.quiz_loom_db) : null;
+    if (db) {
       try {
         const sessionId = `${this.roomCode}-${Date.now()}`;
-        await this.env.DB.prepare(
+        await db.prepare(
           `INSERT INTO game_sessions (id, room_code, host_name, quiz_title, participant_count) VALUES (?, ?, ?, ?, ?)`
         ).bind(sessionId, this.roomCode, this.hostName, this.quizTitle, this.participants.size).run();
 
-        const insertResultStmt = this.env.DB.prepare(
+        const insertResultStmt = db.prepare(
           `INSERT INTO game_results (session_id, player_name, rank, score, streak) VALUES (?, ?, ?, ?, ?)`
         );
         const batchOps = leaderboard.map(p =>
           insertResultStmt.bind(sessionId, p.name, p.rank, p.score, p.streak)
         );
         if (batchOps.length > 0) {
-          await this.env.DB.batch(batchOps);
+          await db.batch(batchOps);
         }
       } catch (err) {
         console.error('Failed to save game session to D1:', err);

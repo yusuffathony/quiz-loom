@@ -60,6 +60,9 @@ async function getAuthenticatedUser(request, db) {
 
 export default {
   async fetch(request, env, ctx) {
+    if (env) {
+      env.DB = env.DB || env.quiz_loom_db;
+    }
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders });
     }
